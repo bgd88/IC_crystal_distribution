@@ -45,7 +45,7 @@ function R = makeAngleAxisRotation(angle, u)
 
 angle = pi/180*angle;
 u = reshape(u, 3, 1);
-u = u ./ euclidean_norm(u);
+u = u ./ norm(u);
 
 c = cos(angle);
 s = sin(angle);

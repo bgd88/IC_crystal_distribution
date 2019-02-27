@@ -1,6 +1,6 @@
 function [phi, theta, v] = longitudinalCubicWavespeeds(c11, c12, c44, rho)
 %Returns Longitudinal Cubic Wavespeeds as a function of two angles
-%  phi is the angle the vector makes with the x1 direction on the x1-x2 
+%  phi is the angle the vector makes with the x1 direction in the x1-x2 
 %  plane and theta is the angle between the vector and x3
 
 % Following Miaki's note on Acoustic wave speeds and Zheng & Spencer 1993:
@@ -13,7 +13,7 @@ eta = c11 - lambda - 2*mu;
 
 % Generate 0..90 degree grids
 %[theta, phi] = meshgrid(linspace(0, 180), linspace(0, 360));
-[theta, phi] = meshgrid(linspace(0, 90, 1001), linspace(0, 90, 1001));
+[theta, phi] = meshgrid(linspace(0, 90, 501), linspace(0, 90, 501));
 
 cT4 = cosd(theta).^4;
 cP4 = cosd(phi).^4;
