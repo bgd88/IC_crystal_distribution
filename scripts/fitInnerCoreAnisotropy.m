@@ -11,7 +11,24 @@ Temperature = 6000; % [K]
 C = createCubicElasticityMatrix(c11, c12, c44);
 
 % Display the non-zero components 
-M = displayHookeLawMatrix(C);
+M = displayHookeLawMatrix(C)
 
 % Calculate Isotropic Body-Wave Speeds
-[vP, vS] = calcBodywaveSpeeds(C, rho);
+[vP, vS] = calcBodywaveSpeeds(C, rho)
+
+% Plot P-wavespeed as function of Prop. 
+[phi, theta, v] = longitudinalCubicWavespeeds(c11, c12, c44, rho);
+
+% Create Rotation Matrix 
+% 45 degrees anit-clockwise about Z-axis
+Rz = makeEulerRotation(pi/2, 0 , 0);
+% 45 degrees anit-clockwise about Y-axis
+Ry = makeEulerRotation(0, pi/4 , 0);
+Rtest = makeEulerRotation(pi/4, pi/4 , 0);
+
+Rz2 = makeAngleAxisRotation(-45, [0,0,1]);
+Ry2 = makeAngleAxisRotation(-45, [0,1,0]);
+Rtest2 = Ry2*Rz2;
+
+% Rotate Tensor
+Cnew = transform_tensor(C, Rz);

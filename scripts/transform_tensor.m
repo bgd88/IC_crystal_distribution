@@ -1,4 +1,4 @@
-function otr = transform(itr,tmx)
+function otr = transform_tensor(itr,tmx)
 
 %
 % FUNCTION
@@ -24,12 +24,12 @@ iie = zeros(nd,1);              % initialise vector with indices of input tensor
 ioe = zeros(nd,1);              % initialise vector with indices of output tensor element
 cne = cumprod(3*ones(nd,1))/3;  % vector with cumulative number of elements for each dimension (divided by three)
 
-for oe = 1:ne,                                 % loop over all output elements
+for oe = 1:ne                                 % loop over all output elements
    ioe = mod(floor((oe-1)./cne),3)+1;          % calculate indices of current output tensor element
-   for ie = 1:ne,                              % loop over all input elements
+   for ie = 1:ne                              % loop over all input elements
       pmx = 1;                                 % initialise product of transformation matrices
       iie = mod(floor((ie-1)./cne),3)+1;       % calculate indices of current input tensor element
-      for id = 1:nd,                           % loop over all dimensions
+      for id = 1:nd                           % loop over all dimensions
          pmx = pmx * tmx( ioe(id), iie(id) );  % create product of transformation matrices
       end
       otr(oe) = otr(oe) + pmx * itr(ie);       % add product of transformation matrices and input tensor element to output tensor element
