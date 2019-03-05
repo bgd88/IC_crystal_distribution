@@ -111,20 +111,39 @@ def transform_tensor(T, L):
     Tprime = np.tensordot(Lc, T, (tuple(2*t + 1 for t in rn), tuple(rn)))
     return Tprime
 
-def rotT(T, g):
-    Tprime = np.zeros((3,3,3,3))
-    for i in range(3):
-        for j in range(3):
-            for k in range(3):
-                for l in range(3):
-                    for ii in range(3):
-                        for jj in range(3):
-                            for kk in range(3):
-                                for ll in range(3):
-                                    gg = g[ii,i]*g[jj,j]*g[kk,k]*g[ll,l]
-                                    Tprime[i,j,k,l] = Tprime[i,j,k,l] + \
-                                         gg*T[ii,jj,kk,ll]
-    return Tprime
+def brute_transform_tensor(T,tmx):
+    #
+    # FUNCTION
+    # otr = transform(itr,tmx)
+    #
+    # DESCRIPTION
+    # transform 3D-tensor (Euclidean or Cartesion tensor) of any order (>0) to another coordinate system
+    #
+    # PARAMETERS
+    # otr = output tensor, after transformation; has the same dimensions as the input tensor
+    # itr = input tensor, before transformation; should be a 3-element vector, a 3x3 matrix, or a 3x3x3x... multidimensional array, each dimension containing 3 elements
+    # tmx = transformation matrix, 3x3 matrix that contains the direction cosines between the old and the new coordinate system
+
+    ne = T.size                     # number of tensor elements
+    init_shape = T.shape            # initial tensor shape
+    nd = len(init_shape)             # number of tensor dimensions, i.e. order of tensor
+    itr = T.flatten(order='C')      # flatten array
+    otr = np.zeros(itr.shape)        # create output tensor
+
+    iie = np.zeros([nd,1])          # initialise vector with indices of input tensor element
+    ioe = np.zeros([nd,1])          # initialise vector with indices of output tensor element
+    cne = (np.cumprod(3*np.ones([nd,1]))/3)  # vector with cumulative number of elements for each dimension (divided by three)
+
+    for oe in np.arange(ne):                  # loop over all output elements
+        tmp = 0
+        ioe = np.mod(np.floor((oe)/cne),3)     # calculate indices of current output tensor element
+        for ie in np.arange(ne):               # loop over all input elements
+            pmx = 1                             # initialise product of transformation matrices
+            iie = np.mod(np.floor((ie)/cne),3)       # calculate indices of current input tensor element
+            for id in np.arange(nd):   # loop over all dimensions
+                pmx = pmx * tmx[ int(ioe[id]), int(iie[id]) ]  # create product of transformation matrices
+            otr[oe]  = otr[oe] + pmx * itr[ie]       # add product of transformation matrices and input tensor element to output tensor element
+    return otr.reshape(init_shape, order='C')
 
 def displayHookeLawMatrix(C):
 
