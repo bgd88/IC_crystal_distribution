@@ -5,23 +5,7 @@
 from unittest import TestCase
 
 from createCubicElasticityMatrix import *
-
-
-def are_equal(array_list, N_eps = 10, tol = None):
-    ''' Check if x and y are equal to within machine percision.
-        If an array is passed, will return False if a single
-        element is not within machine percision.
-    '''
-    # Get floating point machine percision
-    if tol is None:
-        tol = N_eps * np.finfo(float).eps
-    # Function which compares whether all the elements of two arrays
-    eq = lambda x, y: ( np.abs(x-y) < np.maximum.reduce([np.abs(x), np.abs(y), \
-                                np.ones_like(x)])*tol).all()
-    # compare first array with all the rest
-    bool_list = map(lambda y: eq(array_list[0], y), array_list)
-    # return true if all true, else false
-    return all(bool_list)
+from array_utils import are_equal
 
 class testTensorRotations(TestCase):
     def _gen_rand_az(self):

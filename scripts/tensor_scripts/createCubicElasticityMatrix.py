@@ -1,6 +1,6 @@
 import numpy as np
 from functools import reduce
-import colorama
+from array_utils import print_cs
 
 def createCubicElasticityMatrix(c11, c12, c44):
     '''Using Conventions detailed in "Eigentensors of linear Anisotropic
@@ -185,19 +185,5 @@ def displayHookeLawMatrix(C):
     M[5,4] = C[0,2,0,1]
     M[5,5] = C[0,1,0,1]
 
-    with np.printoptions(linewidth=100, formatter={'float': color_sign}):
-        print(M)
-        print("\n")
+    print_cs(M)
     return M
-
-def color_sign(x):
-    if x > 0:
-        c = colorama.Fore.GREEN
-        x = '{:2.2E}'.format(x)
-    elif x < 0:
-        c = colorama.Fore.RED
-        x = '{:2.2E}'.format(x)
-    else:
-        c = colorama.Fore.WHITE
-        x = '{:08f}'.format(x)
-    return f'{c}{x}'
