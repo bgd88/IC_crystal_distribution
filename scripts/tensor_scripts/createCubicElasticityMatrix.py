@@ -40,6 +40,23 @@ def createCubicElasticityMatrix(c11, c12, c44):
 
     return C
 
+def createIsotropicElasticityMatrix(lam, mu):
+    """ Define using Lamé parameters (\lambda, \mu) such that:
+        C_{ijkl} = \lambda \delta_{ij}\delta_{kl} +
+            2\mu*(\delta_{il}\delta_{jk} + \delta_{ik}\delta_{jl})
+        where \delta_{ij} is the Kronecker delta. So that the stress-strain
+        relationship becomes:
+        \tau_{ij} = \lambda\delta_{ij}e_{kk} + 2\mue_{ij}
+
+        In terms of the 6-space vector notation:
+        \lambda = c12
+        \mu     = (c11 - c12)/2 """
+    c12 = lam
+    c11 = lam + 2*mu
+    c44 = mu
+    return createCubicElasticityMatrix(c11, c12, c44)
+
+
 def rotation_matrix(z=0, y=0, x=0):
     ''' Return matrix for rotations around z, y and x axes
 
