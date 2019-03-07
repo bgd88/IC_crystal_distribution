@@ -2,20 +2,37 @@
 # -*- coding: utf-8 -*-
 
 """Tests for Tensor Codes"""
-from unittest import TestCase
+import unittest
 
 from createCubicElasticityMatrix import *
 from array_utils import are_equal
 
-class testTensorRotations(TestCase):
+N_iters = 10
+N_eps   = 10
+# rotation_matrix = zero_threshold(rotation_matrix, N_eps=10)
+tol = N_eps * np.finfo(float).eps
+
+def gen_rand_az():
+    return np.random.uniform(0, 2*np.pi)
+
+def gen_rand_rot():
+    return rotation_matrix(*[gen_rand_az() for i in np.arange(3)])
+
+def gen_rand_mat(size=[]):
+    return np.random.uniform(size=size)
+
+class testTensorRotations(unittest.TestCase):
     def _gen_rand_az(self):
-        return np.random.uniform(0, 2*np.pi)
+        return gen_rand_az()
 
     def _gen_rand_rot(self):
-        return rotation_matrix(*[self._gen_rand_az() for i in np.arange(3)])
+        return gen_rand_rot()
 
     def _gen_rand_mat(self, size=[]):
-        return np.random.uniform(size=size)
+        return gen_rand_mat(size)
+
+    def _are_equal(self, X):
+        return are_equal(X, tol=tol)
 
     def test_right_hand_rule(self):
         """Ensure that rotate Counter Clockwise and sensible"""
@@ -24,7 +41,7 @@ class testTensorRotations(TestCase):
         y_hat = np.array([0,1,0])
         z_hat = np.array([0,0,1])
 
-        for i in np.arange(50):
+        for i in np.arange(N_iters):
             # Rotate counter-clockwise az about z-axis
             az = self._gen_rand_az()
             caz = np.cos(az)
@@ -37,25 +54,25 @@ class testTensorRotations(TestCase):
             x_true = np.array([caz, saz, 0])
             # Brute force Sum over indices
             x_brute = brute_transform_tensor(x_hat, R)
-            assert are_equal([x_true, x_prime, x_brute]), "Z rotation of x_hat not correct"
+            assert self._are_equal([x_true, x_prime, x_brute]), "Z rotation of x_hat not correct"
 
             # check y_hat
             y_prime = transform_tensor(y_hat, R)
             y_true = np.array([-saz, caz, 0])
             # Brute force Sum over indices
             y_brute = brute_transform_tensor(y_hat, R)
-            assert are_equal([y_true, y_prime, y_brute]), "Z rotation of y_hat not correct"
+            assert self._are_equal([y_true, y_prime, y_brute]), "Z rotation of y_hat not correct"
 
             # check y_hat
             z_prime = transform_tensor(z_hat, R)
             z_true = np.array([0, 0, 1])
             # Brute force Sum over indices
             z_brute = brute_transform_tensor(z_hat, R)
-            assert are_equal([z_true, z_prime, z_brute]), "Z rotation of z_hat not correct"
+            assert self._are_equal([z_true, z_prime, z_brute]), "Z rotation of z_hat not correct"
 
     def test_vector_rotations(self):
         """Ensure that Code Rotates Vectors Correctly, i.e. rank 1 Tensors"""
-        for i in np.arange(50):
+        for i in np.arange(N_iters):
             v = self._gen_rand_mat([3,])
             R = self._gen_rand_rot()
             # Simple Matrix Multiply
@@ -64,11 +81,11 @@ class testTensorRotations(TestCase):
             u_prime = transform_tensor(v, R)
             # Brute force Sum over indices
             u_brute = brute_transform_tensor(v, R)
-            assert are_equal([u_true, u_prime, u_brute]), "General rotation of random vec not correct"
+            assert self._are_equal([u_true, u_prime, u_brute]), "General rotation of random vec not correct"
 
     def test_matrix_rotations(self):
         """Ensure that Code Rotates Matrices Correctly i.e. rank 2 tensors"""
-        for i in np.arange(50):
+        for i in np.arange(N_iters):
             M = self._gen_rand_mat([3,3])
             R = self._gen_rand_rot()
             # Simple Matrix Multiply
@@ -77,22 +94,42 @@ class testTensorRotations(TestCase):
             M_prime = transform_tensor(M, R)
             # Brute force Sum over indices
             M_brute = brute_transform_tensor(M, R)
-            assert are_equal([M_true, M_prime, M_brute]), "General rotation of random matrix not correct"
+            assert self._are_equal([M_true, M_prime, M_brute]), "General rotation of random matrix not correct"
 
     def test_outer_product(self):
         """Ensure that Code Rotates Matrices same as brute force sum i.e. rank 4 tensors"""
-        for i in np.arange(50):
+        for i in np.arange(N_iters):
             C = self._gen_rand_mat([3,3,3,3])
             R = self._gen_rand_rot()
             C_brute = brute_transform_tensor(C, R)
             C_prime = transform_tensor(C, R)
-            assert are_equal([C_prime, C_brute]), "Outer product transfrom and \
-                                    brute force sum transform are not the same"
+            assert self._are_equal([C_prime, C_brute]), \
+            "Outer product transfrom and brute force sum transform are not the same"
 
+    def test_stress_strain_rotations(self):
+        for i in np.arange(N_iters):
+            C = self._gen_rand_mat([3,3,3,3])
+            E = np.random.uniform(size=[3,3]); E = 0.5*(E + E.T)
+            S = np.tensordot(C, E, ((2,3), (0,1)))
+            R = self._gen_rand_rot()
+            Cprime = transform_tensor(C, R)
+            Eprime = transform_tensor(E, R)
+            Sprime = transform_tensor(np.tensordot(Cprime, Eprime, ((2,3), (0,1))), R.T)
+            assert self._are_equal([S, Sprime]), "Stress is not the same in different coordinate system!"
+            
     def test_isotropic_tensor(self):
-        for i in np.arange(100):
+        for i in np.arange(N_iters):
             params = self._gen_rand_mat([2,])
             C_iso = createIsotropicElasticityMatrix(*params)
             R = self._gen_rand_rot()
             Cprime_iso = transform_tensor(C_iso, R)
-            assert are_equal([C_iso, Cprime_iso]), "Isotropic tensor changed after rotations!"
+            assert self._are_equal([C_iso, Cprime_iso]), "Isotropic tensor changed after rotations!"
+
+    def test_cubic_symmetries(self):
+        for i in np.arange(N_iters):
+            cubic_params = self._gen_rand_mat([3,])
+            C = createCubicElasticityMatrix(*cubic_params)
+            rot_params = [np.random.choice([0,1/2,1,3/2,2])*np.pi for i in range(3)]
+            R = rotation_matrix(*rot_params)
+            Cprime = transform_tensor(C, R)
+            assert self._are_equal([C, Cprime]), "Cubic symmetry not preserved!"
