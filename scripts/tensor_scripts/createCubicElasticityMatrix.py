@@ -1,6 +1,10 @@
 import numpy as np
 from functools import reduce
 from array_utils import print_cs, zero_threshold
+#import matplotlib as mpl
+# from plot_utils import pgf_with_latex
+# mpl.rcParams.update(pgf_with_latex)
+import matplotlib.pyplot as plt
 
 def createCubicElasticityMatrix(c11, c12, c44):
     '''Using Conventions detailed in "Eigentensors of linear Anisotropic
@@ -217,3 +221,45 @@ def displayHookeLawMatrix(C):
 
     print_cs(M)
     return M
+
+def getCubicWavespeeds(c11, c12, c44, rho):
+    """ Returns Longitudinal Cubic Wavespeeds as a function of two angles
+    phi is the angle the vector makes with the x1 direction in the x1-x2
+    plane and theta is the angle between the vector and x3
+
+    Following Miaki's note on Acoustic wave speeds and Zheng & Spencer 1993:
+    c11 = lambda + 2*mu + eta
+    c12 = lambda
+    c13 = mu"""
+    mu = c44;
+    lam = c12
+    eta = c11 - lam - 2*mu
+
+    # Generate 0..90 degree grids
+    theta, phi = np.meshgrid(np.linspace(0, 90, 501), np.linspace(0, 90, 501));
+
+    cT4 = np.cos(theta* np.pi / 180. )**4
+    cP4 = np.cos(phi* np.pi / 180. )**4
+    sP4 = np.sin(phi* np.pi / 180. )**4
+    sT4 = np.sin(theta* np.pi / 180. )**4
+    rhov2 = lam + 2*mu + eta*(cP4*sT4 + sP4*sT4 + cT4)
+
+    v = np.sqrt(rhov2/rho)*1.e-3; # km/s
+    return phi, theta, v
+
+def plotCubicWavespeeds(c11, c12, c44, rho):
+    phi, theta, v = getCubicWavespeeds(c11, c12, c44, rho)
+    fig = plt.figure()
+    plt.contourf(phi, theta, v, 20)
+    plt.colorbar()
+    plt.xlabel(r'$\phi$')
+    plt.ylabel(r'$\vartheta$')
+
+    maxV = np.argmax(v)*1.e-3
+    maxInd = np.unravel_index(np.argmax(v, axis=None), v.shape)
+    phiMax = phi[maxInd]
+    thetaMax = theta[maxInd]
+    plt.plot(phiMax, thetaMax, 'xk', ms=5)
+    plt.text(phiMax-6, thetaMax-4, "({:2.2f}, {:2.2f})".format(phiMax, thetaMax) )
+    plt.text(phiMax-6, thetaMax+4, "{:2.2f} km/s".format(maxV) )
+    return fig

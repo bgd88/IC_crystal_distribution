@@ -8,6 +8,8 @@ verify_ssl = true
 [packages]
 numpy = "*"
 colorama = "*"
+ipython = "*"
+matplotlib = "*"
 
 [requires]
 python_version = "3.7"

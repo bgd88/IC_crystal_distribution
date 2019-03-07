@@ -1,6 +1,7 @@
 import numpy as np
 from contextlib import contextmanager
 import colorama
+colorama.init(autoreset=True)
 import functools
 
 def are_equal(array_list, N_eps = 1, tol = None):
