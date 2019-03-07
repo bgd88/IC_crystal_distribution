@@ -11,32 +11,32 @@ def createCubicElasticityMatrix(c11, c12, c44):
 
     C = np.zeros([3,3,3,3]);
 
-    C[0,0,0,0] = c11;
-    C[1,1,0,0] = c12;
-    C[2,2,0,0] = c12;
+    C[0,0,0,0] = c11
+    C[1,1,0,0] = c12
+    C[2,2,0,0] = c12
 
-    C[0,0,1,1] = c12;
-    C[1,1,1,1] = c11;
-    C[2,2,1,1] = c12;
+    C[0,0,1,1] = c12
+    C[1,1,1,1] = c11
+    C[2,2,1,1] = c12
 
-    C[0,0,2,2] = c12;
-    C[1,1,2,2] = c12;
-    C[2,2,2,2] = c11;
-    # Factor of 2 from Voight Notation to 4 Tensor
-    C[1,2,1,2] = c44/2;
-    C[1,2,2,1] = c44/2;
-    C[2,1,2,1] = c44/2;
-    C[2,1,1,2] = c44/2;
+    C[0,0,2,2] = c12
+    C[1,1,2,2] = c12
+    C[2,2,2,2] = c11
 
-    C[0,2,0,2] = c44/2;
-    C[2,0,0,2] = c44/2;
-    C[0,2,2,0] = c44/2;
-    C[2,0,2,0] = c44/2;
+    C[1,2,1,2] = c44
+    C[1,2,2,1] = c44
+    C[2,1,2,1] = c44
+    C[2,1,1,2] = c44
 
-    C[1,0,1,0] = c44/2;
-    C[0,1,0,1] = c44/2;
-    C[0,1,1,0] = c44/2;
-    C[1,0,0,1] = c44/2;
+    C[0,2,0,2] = c44
+    C[2,0,0,2] = c44
+    C[0,2,2,0] = c44
+    C[2,0,2,0] = c44
+
+    C[1,0,1,0] = c44
+    C[0,1,0,1] = c44
+    C[0,1,1,0] = c44
+    C[1,0,0,1] = c44
 
     return C
 
@@ -53,10 +53,10 @@ def createIsotropicElasticityMatrix(lam, mu):
         \mu     = (c11 - c12)/2 """
     c12 = lam
     c11 = lam + 2*mu
-    c44 = mu
+    c44 = mu # Need the two since we expect the Voight C11, C22
     return createCubicElasticityMatrix(c11, c12, c44)
 
-
+@zero_threshold
 def rotation_matrix(z=0, y=0, x=0):
     ''' Return matrix for rotations around z, y and x axes
 
