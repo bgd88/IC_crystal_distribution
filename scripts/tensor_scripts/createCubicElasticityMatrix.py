@@ -1,10 +1,12 @@
 import numpy as np
 from functools import reduce
-from array_utils import print_cs
+from array_utils import print_cs, zero_threshold
 
 def createCubicElasticityMatrix(c11, c12, c44):
     '''Using Conventions detailed in "Eigentensors of linear Anisotropic
         Materials" by Mehrabadi & Cowin (1989).
+
+        BE SURE TO CHECK PG 134 of NYE 4->(23,32), 5->(31,13), 6->(12,21)
     '''
 
     C = np.zeros([3,3,3,3]);
@@ -22,10 +24,21 @@ def createCubicElasticityMatrix(c11, c12, c44):
     C[2,2,2,2] = c11;
     # Factor of 2 from Voight Notation to 4 Tensor
     C[1,2,1,2] = c44/2;
-    C[0,2,0,2] = c44/2;
-    C[0,1,0,1] = c44/2;
-    return C
+    C[1,2,2,1] = c44/2;
+    C[2,1,2,1] = c44/2;
+    C[2,1,1,2] = c44/2;
 
+    C[0,2,0,2] = c44/2;
+    C[2,0,0,2] = c44/2;
+    C[0,2,2,0] = c44/2;
+    C[2,0,2,0] = c44/2;
+
+    C[1,0,1,0] = c44/2;
+    C[0,1,0,1] = c44/2;
+    C[0,1,1,0] = c44/2;
+    C[1,0,0,1] = c44/2;
+
+    return C
 
 def rotation_matrix(z=0, y=0, x=0):
     ''' Return matrix for rotations around z, y and x axes
