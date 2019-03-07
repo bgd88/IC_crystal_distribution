@@ -3,7 +3,7 @@ from contextlib import contextmanager
 import colorama
 import functools
 
-def are_equal(array_list, N_eps = 10, tol = None):
+def are_equal(array_list, N_eps = 1, tol = None):
     ''' Check if x and y are equal to within machine percision.
         If an array is passed, will return False if a single
         element is not within machine percision.
@@ -19,14 +19,14 @@ def are_equal(array_list, N_eps = 10, tol = None):
     # return true if all true, else false
     return all(bool_list)
 
-def zero_threshold(func, N_eps = 1):
+def zero_threshold(func, N_eps = 10):
     # Get floating point machine percision
     @functools.wraps(func)
     def wrapper_decorator(*args, **kwargs):
         #TODO: Figure out how to pass arguments to decorators
         M = func(*args, **kwargs)
         tol = N_eps * np.finfo(float).eps
-        M_max = np.max(M)
+        M_max = np.max(np.abs(M))
         M[np.abs(M/M_max) < tol] = 0.0
         return M
     return wrapper_decorator
