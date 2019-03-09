@@ -4,12 +4,13 @@
 """Tests for Tensor Codes"""
 import unittest
 
-from createCubicElasticityMatrix import *
+#TODO: define __all__ for elasticity_matrix
+from elasticity_matrix import *
 from array_utils import are_equal
+import numpy as np
 
 N_iters = 10
 N_eps   = 10
-# rotation_matrix = zero_threshold(rotation_matrix, N_eps=10)
 tol = N_eps * np.finfo(float).eps
 
 def gen_rand_az():
@@ -116,11 +117,11 @@ class testTensorRotations(unittest.TestCase):
             Eprime = transform_tensor(E, R)
             Sprime = transform_tensor(np.tensordot(Cprime, Eprime, ((2,3), (0,1))), R.T)
             assert self._are_equal([S, Sprime]), "Stress is not the same in different coordinate system!"
-            
+
     def test_isotropic_tensor(self):
         for i in np.arange(N_iters):
-            params = self._gen_rand_mat([2,])
-            C_iso = createIsotropicElasticityMatrix(*params)
+            iso_params = self._gen_rand_mat([2,])
+            C_iso = create_isotropic_elasticity_tensor(*iso_params)
             R = self._gen_rand_rot()
             Cprime_iso = transform_tensor(C_iso, R)
             assert self._are_equal([C_iso, Cprime_iso]), "Isotropic tensor changed after rotations!"
@@ -128,8 +129,18 @@ class testTensorRotations(unittest.TestCase):
     def test_cubic_symmetries(self):
         for i in np.arange(N_iters):
             cubic_params = self._gen_rand_mat([3,])
-            C = createCubicElasticityMatrix(*cubic_params)
+            C = create_cubic_elasticity_tensor(*cubic_params)
             rot_params = [np.random.choice([0,1/2,1,3/2,2])*np.pi for i in range(3)]
             R = rotation_matrix(*rot_params)
             Cprime = transform_tensor(C, R)
             assert self._are_equal([C, Cprime]), "Cubic symmetry not preserved!"
+
+    def test_christoffel_wavespeed(self):
+        N = 50
+        for i in np.arange(N_iters):
+            cubic_params = 1. + self._gen_rand_mat([3,])
+            rho = 1. + np.random.uniform()
+            phi, theta, v_analytic = get_cubic_Pwavespeeds(*cubic_params, rho, N)
+            C = create_cubic_elasticity_tensor(*cubic_params)
+            phi, theta, v_numeric = get_acoustic_Pwavespeeds(C, rho, N)
+            assert self._are_equal([v_analytic, v_numeric]), "Numerical solution of the Christoffel equation doesn't match analytic calc. "

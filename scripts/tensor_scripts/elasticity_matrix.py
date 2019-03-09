@@ -6,7 +6,7 @@ from array_utils import print_cs, zero_threshold
 # mpl.rcParams.update(pgf_with_latex)
 import matplotlib.pyplot as plt
 
-def createCubicElasticityMatrix(c11, c12, c44):
+def create_cubic_elasticity_tensor(c11, c12, c44):
     '''Using Conventions detailed in "Eigentensors of linear Anisotropic
         Materials" by Mehrabadi & Cowin (1989).
 
@@ -27,24 +27,12 @@ def createCubicElasticityMatrix(c11, c12, c44):
     C[1,1,2,2] = c12
     C[2,2,2,2] = c11
 
-    C[1,2,1,2] = c44
-    C[1,2,2,1] = c44
-    C[2,1,2,1] = c44
-    C[2,1,1,2] = c44
-
-    C[0,2,0,2] = c44
-    C[2,0,0,2] = c44
-    C[0,2,2,0] = c44
-    C[2,0,2,0] = c44
-
-    C[1,0,1,0] = c44
-    C[0,1,0,1] = c44
-    C[0,1,1,0] = c44
-    C[1,0,0,1] = c44
-
+    C[1,2,1,2] = C[1,2,2,1] = C[2,1,2,1] = C[2,1,1,2] = c44
+    C[0,2,0,2] = C[2,0,0,2] = C[0,2,2,0] = C[2,0,2,0] = c44
+    C[1,0,1,0] = C[0,1,0,1] = C[0,1,1,0] = C[1,0,0,1] = c44
     return C
 
-def createIsotropicElasticityMatrix(lam, mu):
+def create_isotropic_elasticity_tensor(lam, mu):
     """ Define using Lamé parameters (\lambda, \mu) such that:
         C_{ijkl} = \lambda \delta_{ij}\delta_{kl} +
             2\mu*(\delta_{il}\delta_{jk} + \delta_{ik}\delta_{jl})
@@ -58,7 +46,7 @@ def createIsotropicElasticityMatrix(lam, mu):
     c12 = lam
     c11 = lam + 2*mu
     c44 = mu # Need the two since we expect the Voight C11, C22
-    return createCubicElasticityMatrix(c11, c12, c44)
+    return create_cubic_elasticity_tensor(c11, c12, c44)
 
 @zero_threshold
 def rotation_matrix(z=0, y=0, x=0):
@@ -179,7 +167,7 @@ def brute_transform_tensor(T,tmx):
             otr[oe]  = otr[oe] + pmx * itr[ie]       # add product of transformation matrices and input tensor element to output tensor element
     return otr.reshape(init_shape, order='C')
 
-def displayHookeLawMatrix(C):
+def getHookeLawMatrix(C):
 
     M = np.zeros([6, 6])
 
@@ -218,11 +206,57 @@ def displayHookeLawMatrix(C):
     M[4,4] = C[0,2,0,2]
     M[5,4] = C[0,2,0,1]
     M[5,5] = C[0,1,0,1]
-
-    print_cs(M)
     return M
 
-def getCubicWavespeeds(c11, c12, c44, rho):
+def get_direction_vector(phi, theta):
+    """ q = cos(phi)sin(theta)x_1 + sin(phi)sin(theta)x_2 + cos(theta)x_3"""
+    q = np.zeros(shape=[3,])
+    q[0] = np.cos(phi) * np.sin(theta)
+    q[1] = np.sin(phi) * np.sin(theta)
+    q[2] = np.cos(theta)
+    return q
+
+def get_wavespeed(C_ijkl, rho, q, u):
+    """ \rho v^2 = q_i u_j c_{ijkl} q_k u_l
+    """
+    # Create Christoffel Matrix
+    # M_ij = \q_n C_{inmj} \q_m
+    M_ij  = np.tensordot(q, np.tensordot(q, C_ijkl, (0,1)), (0,2))
+    # M_ij = np.dot(q, np.dot(q, C_ijkl))
+    rhov2 = np.dot(u, np.dot(u, M_ij))
+    return np.sqrt(rhov2/rho)
+
+def get_acoustic_Pwavespeeds(C_ijkl, rho, N=100):
+    #TODO: Vectorize this!!
+    PHI, THETA = np.meshgrid(np.linspace(0, 360, N), np.linspace(0, 180, N))
+    V = np.zeros_like(THETA)
+    # Need vectorize this
+    for ii in np.arange(N):
+        for jj in np.arange(N):
+            phi   = PHI[ii, jj]
+            theta = THETA[ii, jj]
+            q = get_direction_vector(phi*np.pi/180, theta*np.pi/180)
+            V[ii, jj] = get_wavespeed(C_ijkl, rho, q, q)
+    return PHI, THETA, V
+
+def plot_wavespeeds(phi, theta, v):
+    fig = plt.figure()
+    plt.contourf(phi, theta, v, 20)
+    plt.colorbar()
+    plt.xlabel(r'$\phi$')
+    plt.ylabel(r'$\vartheta$')
+    return fig
+
+def plot_max(phi, theta, v):
+    maxV = np.max(v)
+    maxInd = np.unravel_index(np.argmax(v, axis=None), v.shape)
+    phiMax = phi[maxInd]
+    thetaMax = theta[maxInd]
+    plt.plot(phiMax, thetaMax, 'xk', ms=5)
+    plt.text(phiMax-12, thetaMax-10, "({:2.2f}, {:2.2f})".format(phiMax, thetaMax) )
+    plt.text(phiMax-12, thetaMax+10, "{:2.2f} km/s".format(maxV) )
+
+def get_cubic_Pwavespeeds(c11, c12, c44, rho, N=100):
     """ Returns Longitudinal Cubic Wavespeeds as a function of two angles
     phi is the angle the vector makes with the x1 direction in the x1-x2
     plane and theta is the angle between the vector and x3
@@ -236,7 +270,7 @@ def getCubicWavespeeds(c11, c12, c44, rho):
     eta = c11 - lam - 2*mu
 
     # Generate 0..90 degree grids
-    theta, phi = np.meshgrid(np.linspace(0, 90, 501), np.linspace(0, 90, 501));
+    phi, theta = np.meshgrid(np.linspace(0, 360, N), np.linspace(0, 180, N))
 
     cT4 = np.cos(theta* np.pi / 180. )**4
     cP4 = np.cos(phi* np.pi / 180. )**4
@@ -244,22 +278,16 @@ def getCubicWavespeeds(c11, c12, c44, rho):
     sT4 = np.sin(theta* np.pi / 180. )**4
     rhov2 = lam + 2*mu + eta*(cP4*sT4 + sP4*sT4 + cT4)
 
-    v = np.sqrt(rhov2/rho)*1.e-3; # km/s
+    v = np.sqrt(rhov2/rho)
     return phi, theta, v
 
-def plotCubicWavespeeds(c11, c12, c44, rho):
-    phi, theta, v = getCubicWavespeeds(c11, c12, c44, rho)
-    fig = plt.figure()
-    plt.contourf(phi, theta, v, 20)
-    plt.colorbar()
-    plt.xlabel(r'$\phi$')
-    plt.ylabel(r'$\vartheta$')
-
-    maxV = np.argmax(v)*1.e-3
-    maxInd = np.unravel_index(np.argmax(v, axis=None), v.shape)
-    phiMax = phi[maxInd]
-    thetaMax = theta[maxInd]
-    plt.plot(phiMax, thetaMax, 'xk', ms=5)
-    plt.text(phiMax-6, thetaMax-4, "({:2.2f}, {:2.2f})".format(phiMax, thetaMax) )
-    plt.text(phiMax-6, thetaMax+4, "{:2.2f} km/s".format(maxV) )
+def plot_cubic_Pwavespeeds(c11, c12, c44, rho):
+    """ C_{ijkl} = \lambda \delta_{ij}\delta_{kl} +
+                    2\mu*(\delta_{il}\delta_{jk} + \delta_{ik}\delta_{jl})
+        c_{11} = \lambda + 2\mu + \eta
+        c_{12} = \lambda
+        c_{44} = \mu
+    """
+    phi, theta, v = get_cubic_Pwavespeeds(c11, c12, c44, rho)
+    fig = plot_wavespeeds(phi, theta, v*1.e-3)
     return fig

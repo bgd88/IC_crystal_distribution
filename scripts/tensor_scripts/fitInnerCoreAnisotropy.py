@@ -1,4 +1,4 @@
-from createCubicElasticityMatrix import *
+from elasticity_matrix import *
 from array_utils import print_cs
 import numpy as np
 import matplotlib.pyplot as plt
@@ -15,8 +15,11 @@ Pressure =  357.5 * 1.e9 # [Pa]
 Temperature = 6000 # [K]
 
 # Create Elasticity 4-Tensor
-C = create_cubic_elasticity_matrix(c11, c12, c44)
-fig = plot_cubic_wavespeeds(c11, c12, c44, rho)
+C = create_cubic_elasticity_tensor(c11, c12, c44)
+
+
+
+fig = plot_cubic_Pwavespeeds(c11, c12, c44, rho)
 plt.savefig('../../analaytic_cubic_wavespeeds.pdf')
 plt.close()
 
@@ -25,8 +28,9 @@ plt.savefig('../../numerical_cubic_wavespeeds.pdf')
 plt.close()
 
 # Display the non-zero components
-print("Original Tensor in 6-space Tensor Notations:")
 M = getHookeLawMatrix(C)
+print("Original Tensor in 6-space Tensor Notations:")
+print_cs(M)
 
 # Create rotation matrix
 R = rotation_matrix(np.pi/4, -55.*np.pi/180)
@@ -39,8 +43,13 @@ plt.savefig('../../rotated_cubic_wavespeeds.pdf')
 plt.close()
 
 
+phi, theta, v_analytic = get_cubic_Pwavespeeds(c11, c12, c44, rho, 100)
+phi, theta, v_numeric  = get_acoustic_Pwavespeeds(C, rho, 100)
+print(np.max(np.abs(v_analytic - v_numeric)/v_analytic))
 
-
+plot_wavespeeds(phi, theta, v_analytic)
+plot_wavespeeds(phi, theta, v_numeric)
+plot_wavespeeds(phi, theta, v_numeric-v_analytic)
 
 # v = np.array([1, 1, 1])
 # s =1./np.sqrt(2)
