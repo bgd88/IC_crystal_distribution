@@ -216,15 +216,35 @@ def get_direction_vector(phi, theta):
     q[2] = np.cos(theta)
     return q
 
+def get_christoffel_tensor(C_ijkl, q):
+    # M_ij = \q_n C_{inmj} \q_m
+    M_ij  = np.tensordot(q, np.tensordot(q, C_ijkl, (0,1)), (0,2))
+    return M_ij
+
 def get_wavespeed(C_ijkl, rho, q, u):
     """ \rho v^2 = q_i u_j c_{ijkl} q_k u_l
     """
     # Create Christoffel Matrix
-    # M_ij = \q_n C_{inmj} \q_m
-    M_ij  = np.tensordot(q, np.tensordot(q, C_ijkl, (0,1)), (0,2))
-    # M_ij = np.dot(q, np.dot(q, C_ijkl))
+    M_ij  = get_christoffel_tensor(C_ijkl, q)
     rhov2 = np.dot(u, np.dot(u, M_ij))
     return np.sqrt(rhov2/rho)
+
+def get_eig_wavespeeds(C_ijkl, rho, N=100):
+    #TODO: Vectorize this!!
+    PHI, THETA = np.meshgrid(np.linspace(0, 360, N), np.linspace(0, 180, N))
+    V = np.zeros([N, N, 3])
+    # Need vectorize this
+    for ii in np.arange(N):
+        for jj in np.arange(N):
+            phi   = PHI[ii, jj]
+            theta = THETA[ii, jj]
+            q = get_direction_vector(phi*np.pi/180, theta*np.pi/180)
+            M_ij  = get_christoffel_tensor(C_ijkl, q)
+            cons = np.max(M_ij)
+            U, W = np.linalg.eig(M_ij/cons)
+            # Theor. e-values are 1 +/- 1e-9
+            V[ii, jj, :] = np.sort(np.sqrt(cons*U/rho))
+    return PHI, THETA, V
 
 def get_acoustic_Pwavespeeds(C_ijkl, rho, N=100):
     #TODO: Vectorize this!!
