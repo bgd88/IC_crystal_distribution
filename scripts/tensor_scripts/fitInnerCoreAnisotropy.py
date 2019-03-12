@@ -10,8 +10,8 @@ c11 = 1405.9  * 1.e9 # [Pa]
 c12 = 1364.8  * 1.e9 # [Pa]
 # NOTE: Taku's Values are given in Voight Notation, so there is an extra factor
 #       of 2 in definition of c44: \hat{c44} = 2*c44 --> c44 = \hat{c44}/2
-c44_hat =  397.9  * 1.e9 # [Pa]
-c44 = c44_hat/2
+c44 =  397.9  * 1.e9# [Pa]
+# c44 = c44_hat/2
 rho =   12.98 * 1.e3 # [kg/m^3]
 
 Pressure =  357.5 * 1.e9 # [Pa]
@@ -98,6 +98,18 @@ f.axes[1].set_ylabel('km/s')
 f.savefig(figDir+'6_Smax_eig_wavespeeds.pdf')
 plt.close(f)
 
+num_chrystal = int(1.e5)
+C_ave = np.zeros([3,3,3,3])
+for ii in np.arange(num_chrystal):
+    C_ave += transform_tensor(C, gen_rand_rot())/num_chrystal
+
+phi, theta, v  = get_eig_wavespeeds(C_ave, rho, 50)
+alpha = v[:, :, 2]
+f = plot_wavespeeds(phi, theta, alpha*1.e-3)
+f.axes[0].set_title(r'$V_p$ of {} randomly oriented cubic chrystals.'.format(num_chrystal))
+f.axes[1].set_ylabel('km/s')
+f.savefig(figDir+'7_randomlmy_oriented_Pwavespeeds.pdf')
+plt.close(f)
 
 
 # v = np.array([1, 1, 1])

@@ -19,14 +19,66 @@ def gen_rand_sym_mat(size=[]):
     temp = np.random.uniform(size=size)
     return temp + temp.T
 
+def create_transversely_isotropic_matrix(A, C, F, L, N):
+    '''Using Conventions of Tromp (1995) - see Equations (27)-(28).
+
+       For more detailed explination see "Eigentensors of linear Anisotropic
+       Materials" by Mehrabadi & Cowin (1989) - Equation 2.3
+       C_1111 = C_2222 = A
+       C_3333 = C
+       C_1133 = C_2233 = F
+       C_1313 = C_2323 = L
+       C_1212 = N
+       C_1122 = A - 2N '''
+    # Divide by 2 because symmetrization will double the main diagonal
+    # A trick to define only the top right half of the matrix
+    V_ij = np.zeros([6,6])
+    V_ij[0, 0] = V_ij[1, 1] = A/2. #C_1111 = C_2222 = A
+    V_ij[2, 2] = C/2.              #C_3333 = C
+    V_ij[3, 3] = V_ij[4, 4] = L/2. #C_2323 = C_1313 = L
+    V_ij[5, 5] = N/2.              #C_1212 = N
+
+    # Will symmetrize add end so only define half will pickup rest with transpose
+    V_ij[0, 1] = A - 2*N           #C_1122 = A - 2N
+    V_ij[0, 2] = V_ij[1, 2] = F    #C_1133 = C_2233 = F
+    # symmetrize the hooke law matrix
+    return V_ij + V_ij.T
+
+def create_transversely_isotropic_tensor(A, C, F, L, N):
+    '''Create 3x3x3x3 Elasticity Tensor with transverse isotropy'''
+    V_ij = create_transversely_isotropic_matrix(A, C, F, L, N)
+    return create_Cijkl_from_hooke_law_matrix(V_ij)
+
+def create_Cijkl_from_hooke_law_matrix(V_ij):
+    """Turn a 6x6 matrix into a 3x3x3x3 tensor according to Voigt notation."""
+    # Definition of Voigt notation
+    VOIGT = {0: 0, 11: 1, 22: 2, 12: 3, 21: 3, 2: 4, 20: 4, 1: 5, 10: 5}
+    C_ijkl = [[[[V_ij[VOIGT[10*i+j]][VOIGT[10*k+l]]
+                 for i in range(3)] for j in range(3)]
+                 for k in range(3)] for l in range(3)]
+    return np.array(C_ijkl)
+
+def create_cubic_hooke_law_matrix(c11, c12, c44):
+    V_ij = np.zeros([6,6])
+    V_ij[0, 0] = V_ij[1, 1] = V_ij[2, 2] = c11 #C_1111 = C_2222 = C_3333 = c11
+    V_ij[3, 3] = V_ij[4, 4] = V_ij[5, 5] = c44 #C_2323 = C_1313 = C_1212 = c44
+    V_ij[0, 1] = V_ij[0, 2] = V_ij[1, 2] = c12 #C_1313 = C_2323 = C_1212 = c12
+    V_ij[1, 0] = V_ij[2, 0] = V_ij[2, 1] = c12 #C_1313 = C_2323 = C_1212 = c12
+    return V_ij
+
 def create_cubic_elasticity_tensor(c11, c12, c44):
+    '''Create 3x3x3x3 Elasticity Tensor with cubic symmetry'''
+    V_ij = create_cubic_hooke_law_matrix(c11, c12, c44)
+    return create_Cijkl_from_hooke_law_matrix(V_ij)
+
+def brute_create_cubic_elasticity_tensor(c11, c12, c44):
     '''Using Conventions detailed in "Eigentensors of linear Anisotropic
         Materials" by Mehrabadi & Cowin (1989).
 
         BE SURE TO CHECK PG 134 of NYE 4->(23,32), 5->(31,13), 6->(12,21)
     '''
 
-    C = np.zeros([3,3,3,3]);
+    C = np.zeros([3,3,3,3])
 
     C[0,0,0,0] = c11
     C[1,1,0,0] = c12
@@ -60,6 +112,39 @@ def create_isotropic_elasticity_tensor(lam, mu):
     c11 = lam + 2*mu
     c44 = mu # Need the two since we expect the Voight C11, C22
     return create_cubic_elasticity_tensor(c11, c12, c44)
+
+def get_hooke_law_matrix(C_ijkl):
+    """Turn a 3x3x3x3 tensor to a 6x6 matrix according to Voigt notation."""
+    C_ij = np.zeros((6,6))
+
+    # Divide by 2 because symmetrization will double the main diagonal
+    C_ij[0,0] = 0.5*C_ijkl[0][0][0][0]
+    C_ij[1,1] = 0.5*C_ijkl[1][1][1][1]
+    C_ij[2,2] = 0.5*C_ijkl[2][2][2][2]
+    C_ij[3,3] = 0.5*C_ijkl[1][2][1][2]
+    C_ij[4,4] = 0.5*C_ijkl[0][2][0][2]
+    C_ij[5,5] = 0.5*C_ijkl[0][1][0][1]
+
+    C_ij[0,1] = C_ijkl[0][0][1][1]
+    C_ij[0,2] = C_ijkl[0][0][2][2]
+    C_ij[0,3] = C_ijkl[0][0][1][2]
+    C_ij[0,4] = C_ijkl[0][0][0][2]
+    C_ij[0,5] = C_ijkl[0][0][0][1]
+
+    C_ij[1,2] = C_ijkl[1][1][2][2]
+    C_ij[1,3] = C_ijkl[1][1][1][2]
+    C_ij[1,4] = C_ijkl[1][1][0][2]
+    C_ij[1,5] = C_ijkl[1][1][0][1]
+
+    C_ij[2,3] = C_ijkl[2][2][1][2]
+    C_ij[2,4] = C_ijkl[2][2][0][2]
+    C_ij[2,5] = C_ijkl[2][2][0][1]
+
+    C_ij[3,4] = C_ijkl[1][2][0][2]
+    C_ij[3,5] = C_ijkl[1][2][0][1]
+
+    C_ij[4,5] = C_ijkl[0][2][0][1]
+    return C_ij + C_ij.T
 
 @zero_threshold
 def rotation_matrix(z=0, y=0, x=0):
@@ -179,47 +264,6 @@ def brute_transform_tensor(T,tmx):
                 pmx = pmx * tmx[ int(ioe[id]), int(iie[id]) ]  # create product of transformation matrices
             otr[oe]  = otr[oe] + pmx * itr[ie]       # add product of transformation matrices and input tensor element to output tensor element
     return otr.reshape(init_shape, order='C')
-
-def get_hooke_law_matrix(C):
-
-    M = np.zeros([6, 6])
-
-    M[0,0] = C[0,0,0,0]
-    M[1,0] = C[1,1,0,0]
-    M[2,0] = C[2,2,0,0]
-    M[3,0] = C[1,2,0,0]
-    M[4,0] = C[0,2,0,0]
-    M[5,0] = C[0,1,0,0]
-
-    M[0,1] = C[0,0,1,1]
-    M[1,1] = C[1,1,1,1]
-    M[2,1] = C[2,2,1,1]
-    M[3,1] = C[1,2,1,1]
-    M[4,1] = C[0,2,1,1]
-    M[5,1] = C[0,1,1,1]
-
-    M[0,2] = C[0,0,2,2]
-    M[1,2] = C[1,1,2,2]
-    M[2,2] = C[2,2,2,2]
-    M[3,2] = C[1,2,2,2]
-    M[4,2] = C[0,2,2,2]
-    M[5,2] = C[0,1,2,2]
-
-    M[0,3] = C[0,0,1,2]
-    M[1,3] = C[1,1,1,2]
-    M[2,3] = C[2,2,1,2]
-    M[3,3] = C[1,2,1,2]
-    M[4,3] = C[0,2,1,2]
-    M[5,3] = C[0,1,1,2]
-
-    M[0,4] = C[0,0,0,2]
-    M[1,4] = C[1,1,0,2]
-    M[2,4] = C[2,2,0,2]
-    M[3,4] = C[1,2,0,2]
-    M[4,4] = C[0,2,0,2]
-    M[5,4] = C[0,2,0,1]
-    M[5,5] = C[0,1,0,1]
-    return M
 
 def get_direction_vector(phi, theta):
     """ q = cos(phi)sin(theta)x_1 + sin(phi)sin(theta)x_2 + cos(theta)x_3"""

@@ -23,6 +23,9 @@ class testTensorRotations(unittest.TestCase):
     def _gen_rand_mat(self, size=[]):
         return gen_rand_mat(size)
 
+    def _gen_rand_sym_mat(self, size=[]):
+        return gen_rand_sym_mat(size)
+
     def _are_equal(self, X):
         return are_equal(X, tol=tol)
 
@@ -109,6 +112,13 @@ class testTensorRotations(unittest.TestCase):
             Sprime = transform_tensor(np.tensordot(Cprime, Eprime, ((2,3), (0,1))), R.T)
             assert self._are_equal([S, Sprime]), "Stress is not the same in different coordinate system!"
 
+    def test_hooke_law_fomulation(self):
+        for i in np.arange(N_iters):
+            V = self._gen_rand_sym_mat([6,6])
+            C = create_Cijkl_from_hooke_law_matrix(V)
+            Vprime = get_hooke_law_matrix(C)
+            assert self._are_equal([V, Vprime]), "Error in mapping from 4th order tensor to 6x6 matrix"
+
     def test_isotropic_tensor(self):
         for i in np.arange(N_iters):
             iso_params = self._gen_rand_mat([2,])
@@ -121,10 +131,24 @@ class testTensorRotations(unittest.TestCase):
         for i in np.arange(N_iters):
             cubic_params = self._gen_rand_mat([3,])
             C = create_cubic_elasticity_tensor(*cubic_params)
+            assert self._are_equal([C, brute_create_cubic_elasticity_tensor(*cubic_params)]), "Cubic Tensor not generated Correctly"
             rot_params = [np.random.choice([0,1/2,1,3/2,2])*np.pi for i in range(3)]
             R = rotation_matrix(*rot_params)
             Cprime = transform_tensor(C, R)
             assert self._are_equal([C, Cprime]), "Cubic symmetry not preserved!"
+
+    def test_transverseley_isotropic_symmetry(self):
+        for i in np.arange(N_iters):
+            tran_iso_params = self._gen_rand_mat([5,])
+            A = C = tran_iso_params[0]
+            L = N = mu = tran_iso_params[1]
+            F = lam = A - 2*N
+            C_iso = create_transversely_isotropic_tensor(A,C,F,L,N)
+            assert self._are_equal([C_iso, create_isotropic_elasticity_tensor(lam, mu)]), "Doesn't correctly reduce to Isotropic case"
+            C = create_transversely_isotropic_tensor(*tran_iso_params)
+            R = rotation_matrix(self._gen_rand_az())
+            Cprime = transform_tensor(C, R)
+            assert self._are_equal([C, Cprime]), "Not transversely Isotropic preserved!"
 
     def test_christoffel_wavespeed(self):
         N = 50
