@@ -1,6 +1,8 @@
 from elasticity_matrix import *
 from array_utils import print_cs
 import numpy as np
+import matplotlib
+matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 
 figDir = "../../figures/"
@@ -95,6 +97,8 @@ f.axes[0].set_title(r'$V_{Smax}$ from Eigenvalues of Christoffel Tensor')
 f.axes[1].set_ylabel('km/s')
 f.savefig(figDir+'6_Smax_eig_wavespeeds.pdf')
 plt.close(f)
+
+
 
 # v = np.array([1, 1, 1])
 # s =1./np.sqrt(2)

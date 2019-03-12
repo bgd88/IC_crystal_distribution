@@ -6,6 +6,19 @@ from array_utils import print_cs, zero_threshold
 # mpl.rcParams.update(pgf_with_latex)
 import matplotlib.pyplot as plt
 
+def gen_rand_az():
+    return np.random.uniform(0, 2*np.pi)
+
+def gen_rand_rot():
+    return rotation_matrix(*[gen_rand_az() for i in np.arange(3)])
+
+def gen_rand_mat(size=[]):
+    return np.random.uniform(size=size)
+
+def gen_rand_sym_mat(size=[]):
+    temp = np.random.uniform(size=size)
+    return temp + temp.T
+
 def create_cubic_elasticity_tensor(c11, c12, c44):
     '''Using Conventions detailed in "Eigentensors of linear Anisotropic
         Materials" by Mehrabadi & Cowin (1989).
@@ -167,7 +180,7 @@ def brute_transform_tensor(T,tmx):
             otr[oe]  = otr[oe] + pmx * itr[ie]       # add product of transformation matrices and input tensor element to output tensor element
     return otr.reshape(init_shape, order='C')
 
-def getHookeLawMatrix(C):
+def get_hooke_law_matrix(C):
 
     M = np.zeros([6, 6])
 
@@ -310,4 +323,4 @@ def plot_cubic_Pwavespeeds(c11, c12, c44, rho):
     """
     phi, theta, v = get_cubic_Pwavespeeds(c11, c12, c44, rho)
     fig = plot_wavespeeds(phi, theta, v*1.e-3)
-    return fig
+    return

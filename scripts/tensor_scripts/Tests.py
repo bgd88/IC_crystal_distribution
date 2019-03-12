@@ -13,15 +13,6 @@ N_iters = 10
 N_eps   = 10
 tol = N_eps * np.finfo(float).eps
 
-def gen_rand_az():
-    return np.random.uniform(0, 2*np.pi)
-
-def gen_rand_rot():
-    return rotation_matrix(*[gen_rand_az() for i in np.arange(3)])
-
-def gen_rand_mat(size=[]):
-    return np.random.uniform(size=size)
-
 class testTensorRotations(unittest.TestCase):
     def _gen_rand_az(self):
         return gen_rand_az()
