@@ -35,6 +35,17 @@ def plot_max(phi, theta, v):
     plt.text(phiMax-12, thetaMax-10, "({:2.2f}, {:2.2f})".format(phiMax, thetaMax) )
     plt.text(phiMax-12, thetaMax+10, "{:2.2f} km/s".format(maxV) )
 
+def plot_cubic_Pwavespeeds(c11, c12, c44, rho):
+    """ C_{ijkl} = \lambda \delta_{ij}\delta_{kl} +
+                    2\mu*(\delta_{il}\delta_{jk} + \delta_{ik}\delta_{jl})
+        c_{11} = \lambda + 2\mu + \eta
+        c_{12} = \lambda
+        c_{44} = \mu
+    """
+    phi, theta, v = get_cubic_Pwavespeeds(c11, c12, c44, rho)
+    fig = plot_wavespeeds(phi, theta, v*1.e-3)
+    return
+    
 figDir = "../../figures/"
 c11 = 1405.9  * 1.e9 # [Pa]
 c12 = 1364.8  * 1.e9 # [Pa]

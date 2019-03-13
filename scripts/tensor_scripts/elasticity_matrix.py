@@ -421,14 +421,3 @@ def get_cubic_Pwavespeeds(c11, c12, c44, rho, N=100):
 
     v = np.sqrt(rhov2/rho)
     return phi, theta, v
-
-def plot_cubic_Pwavespeeds(c11, c12, c44, rho):
-    """ C_{ijkl} = \lambda \delta_{ij}\delta_{kl} +
-                    2\mu*(\delta_{il}\delta_{jk} + \delta_{ik}\delta_{jl})
-        c_{11} = \lambda + 2\mu + \eta
-        c_{12} = \lambda
-        c_{44} = \mu
-    """
-    phi, theta, v = get_cubic_Pwavespeeds(c11, c12, c44, rho)
-    fig = plot_wavespeeds(phi, theta, v*1.e-3)
-    return
