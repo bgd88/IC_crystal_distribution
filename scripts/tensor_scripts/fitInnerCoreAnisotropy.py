@@ -98,17 +98,24 @@ f.axes[1].set_ylabel('km/s')
 f.savefig(figDir+'6_Smax_eig_wavespeeds.pdf')
 plt.close(f)
 
+
+curDir = figDir+'randomly_oriented/'
 num_chrystal = int(1.e5)
+R = randomEulerRotation()
 C_ave = np.zeros([3,3,3,3])
 for ii in np.arange(num_chrystal):
-    C_ave += transform_tensor(C, gen_rand_rot())/num_chrystal
+    C_ave += transform_tensor(C, R())/num_chrystal
+
+f = R.plot_az_distribution()
+f.savefig(curDir +'az_dist.pdf')
+plt.close(f)
 
 phi, theta, v  = get_eig_wavespeeds(C_ave, rho, 50)
 alpha = v[:, :, 2]
 f = plot_wavespeeds(phi, theta, alpha*1.e-3)
-f.axes[0].set_title(r'$V_p$ of {} randomly oriented cubic chrystals.'.format(num_chrystal))
+f.axes[0].set_title(r'$V_p$ of {} randomly oriented cubic crystals.'.format(num_chrystal))
 f.axes[1].set_ylabel('km/s')
-f.savefig(figDir+'7_randomlmy_oriented_Pwavespeeds.pdf')
+f.savefig(curDir + 'Pwavespeeds_N{}.pdf'.format(num_chrystal))
 plt.close(f)
 
 

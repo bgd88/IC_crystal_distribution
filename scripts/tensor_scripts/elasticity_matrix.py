@@ -6,8 +6,53 @@ from array_utils import print_cs, zero_threshold
 # mpl.rcParams.update(pgf_with_latex)
 import matplotlib.pyplot as plt
 
-def gen_rand_az():
-    return np.random.uniform(0, 2*np.pi)
+class randomRotation:
+    def __init__(self):
+        self.rot_log = []
+        self.type = 'zyx'
+        self._az_labels = {0: 'Z', 1: 'Y', 2: 'X'}
+
+    def __call__(self):
+        crot = self._gen_rand_rot_az()
+        self.rot_log.append(crot)
+        R = self._gen_rand_rot_matrix(crot)
+        return R
+
+    def _gen_rand_rot_matrix(self, crot):
+        return rotation_matrix(*crot)
+
+    def _gen_rand_rot_az(self):
+        return [gen_rand_az() for i in np.arange(3)]
+
+    def _get_az_distribution():
+        raise NotImplementedError
+
+    def plot_az_distribution(self):
+        dist = np.array(self.rot_log)
+        f, axarr = plt.subplots(3, sharex=True, sharey=True)
+        f.suptitle('Histogram of Rotation Angles')
+        for ii in np.arange(3):
+            axarr[ii].hist(dist[:,ii])
+            axarr[ii].set_ylabel('{}-axis'.format(self._az_labels[ii]))
+        return f
+
+class randomEulerRotation(randomRotation):
+    def __init__(self):
+        self.rot_log = []
+        self.type = 'euler'
+        self._az_labels = {0: r'$\alpha$', 1: r'$\beta$', 2: r'$\gamma$'}
+
+    def _gen_rand_rot_az(self):
+        alpha = gen_rand_az([0, 2*np.pi])
+        beta = gen_rand_az([0, np.pi])
+        gamma = gen_rand_az([0, 2*np.pi])
+        return [alpha, beta, gamma]
+
+    def _gen_rand_rot_matrix(self, crot):
+        return euler_rotation_matrix(*crot)
+
+def gen_rand_az(az_range=[0, 2*np.pi]):
+    return np.random.uniform(az_range[0], az_range[1])
 
 def gen_rand_rot():
     return rotation_matrix(*[gen_rand_az() for i in np.arange(3)])
@@ -203,7 +248,16 @@ def rotation_matrix(z=0, y=0, x=0):
     if Ms:
         return reduce(np.dot, Ms[::-1])
     return np.eye(3)
-
+    
+@zero_threshold
+def euler_rotation_matrix(alpha, beta, gamma):
+    assert 0 <= alpha <= 2*np.pi, "Alpha must be between 0 and 2pi"
+    assert 0 <= beta <= np.pi, "Alpha must be between 0 and 2pi"
+    assert 0 <= gamma <= 2*np.pi, "Alpha must be between 0 and 2pi"
+    A = rotation_matrix(z=alpha)
+    B = rotation_matrix(y=beta)
+    C = rotation_matrix(z=gamma)
+    return np.dot(C, np.dot(B,A))
 
 def transform_tensor(T, L):
     ''' Transform an n-th order Tensor using a matrix.
