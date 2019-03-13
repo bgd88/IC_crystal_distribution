@@ -6,16 +6,25 @@ from array_utils import print_cs, zero_threshold
 # mpl.rcParams.update(pgf_with_latex)
 import matplotlib.pyplot as plt
 
+def get_spherical_coordinates(x,y,z):
+    r = np.sqrt(x**2 + y**2 + z**2)
+    theta = np.arccos(z/r)
+    phi = np.arctan2(y,x)
+    return r, theta, phi
+
 class randomRotation:
     def __init__(self):
         self.rot_log = []
         self.type = 'zyx'
         self._az_labels = {0: 'Z', 1: 'Y', 2: 'X'}
+        self.prime_axes = [[],[],[]]
+
 
     def __call__(self):
         crot = self._gen_rand_rot_az()
         self.rot_log.append(crot)
         R = self._gen_rand_rot_matrix(crot)
+        self._log_axes_distribution(R)
         return R
 
     def _gen_rand_rot_matrix(self, crot):
@@ -24,8 +33,13 @@ class randomRotation:
     def _gen_rand_rot_az(self):
         return [gen_rand_az() for i in np.arange(3)]
 
-    def _get_az_distribution():
-        raise NotImplementedError
+    def _log_axes_distribution(self, R):
+        for ii in np.arange(3):
+            x_old = np.zeros([3,])
+            x_old[ii] = 1
+            x_new = transform_tensor(x_old, R)
+            r, theta, phi = get_spherical_coordinates(*x_new)
+            self.prime_axes[ii].append([theta, phi])
 
     def plot_az_distribution(self):
         dist = np.array(self.rot_log)
@@ -36,16 +50,29 @@ class randomRotation:
             axarr[ii].set_ylabel('{}-axis'.format(self._az_labels[ii]))
         return f
 
+    def plot_axes_dist(self):
+        f, axarr = plt.subplots(3, sharex=True, sharey=True)
+        for ii in np.arange(3):
+            dist = np.array(self.prime_axes[ii])
+            x,y = dist[:,0],dist[:,1]
+            axarr[ii].hist2d(x,y, 20)
+            axarr[ii].set_xlabel(r'$\theta$')
+            axarr[ii].set_ylabel(r'$\phi$')
+        return f
+
 class randomEulerRotation(randomRotation):
     def __init__(self):
-        self.rot_log = []
         self.type = 'euler'
         self._az_labels = {0: r'$\alpha$', 1: r'$\beta$', 2: r'$\gamma$'}
+        self.rot_log = []
+        self.prime_axes = [[],[],[]]
 
     def _gen_rand_rot_az(self):
-        alpha = gen_rand_az([0, 2*np.pi])
-        beta = gen_rand_az([0, np.pi])
-        gamma = gen_rand_az([0, 2*np.pi])
+        alpha = np.random.uniform(0, 2*np.pi)
+        # When sampling in the phi direction, we don't actually
+        # want it to be uniform
+        beta = np.arccos(1-2*np.random.uniform(0, 1))
+        gamma = np.random.uniform(0, 2*np.pi)
         return [alpha, beta, gamma]
 
     def _gen_rand_rot_matrix(self, crot):
@@ -248,12 +275,12 @@ def rotation_matrix(z=0, y=0, x=0):
     if Ms:
         return reduce(np.dot, Ms[::-1])
     return np.eye(3)
-    
+
 @zero_threshold
 def euler_rotation_matrix(alpha, beta, gamma):
     assert 0 <= alpha <= 2*np.pi, "Alpha must be between 0 and 2pi"
-    assert 0 <= beta <= np.pi, "Alpha must be between 0 and 2pi"
-    assert 0 <= gamma <= 2*np.pi, "Alpha must be between 0 and 2pi"
+    assert 0 <= beta <= np.pi, "Beta must be between 0 and pi"
+    assert 0 <= gamma <= 2*np.pi, "Gamma must be between 0 and 2pi"
     A = rotation_matrix(z=alpha)
     B = rotation_matrix(y=beta)
     C = rotation_matrix(z=gamma)
@@ -369,23 +396,6 @@ def get_acoustic_Pwavespeeds(C_ijkl, rho, N=100):
             q = get_direction_vector(phi*np.pi/180, theta*np.pi/180)
             V[ii, jj] = get_wavespeed(C_ijkl, rho, q, q)
     return PHI, THETA, V
-
-def plot_wavespeeds(phi, theta, v):
-    fig = plt.figure()
-    plt.contourf(phi, theta, v, 20)
-    plt.colorbar()
-    plt.xlabel(r'$\phi$')
-    plt.ylabel(r'$\vartheta$')
-    return fig
-
-def plot_max(phi, theta, v):
-    maxV = np.max(v)
-    maxInd = np.unravel_index(np.argmax(v, axis=None), v.shape)
-    phiMax = phi[maxInd]
-    thetaMax = theta[maxInd]
-    plt.plot(phiMax, thetaMax, 'xk', ms=5)
-    plt.text(phiMax-12, thetaMax-10, "({:2.2f}, {:2.2f})".format(phiMax, thetaMax) )
-    plt.text(phiMax-12, thetaMax+10, "{:2.2f} km/s".format(maxV) )
 
 def get_cubic_Pwavespeeds(c11, c12, c44, rho, N=100):
     """ Returns Longitudinal Cubic Wavespeeds as a function of two angles
