@@ -45,7 +45,7 @@ def plot_cubic_Pwavespeeds(c11, c12, c44, rho):
     phi, theta, v = get_cubic_Pwavespeeds(c11, c12, c44, rho)
     fig = plot_wavespeeds(phi, theta, v*1.e-3)
     return
-    
+
 figDir = "../../figures/"
 c11 = 1405.9  * 1.e9 # [Pa]
 c12 = 1364.8  * 1.e9 # [Pa]
@@ -150,6 +150,10 @@ for ii in np.arange(3):
     fv.savefig(curDir + '{}_wavespeeds_N{}_pm.pdf'.format(fname[ii], num_chrystal))
     plt.close(f)
 
+Piso, Siso = get_iso_velocites(C, rho)
+Piso2, Siso2 = get_iso_velocites(C_ave, rho)
+print([Piso, Piso2, np.mean(V_ave[:,:,2])])
+print([Siso, Siso2, np.mean(V_ave[:,:,0]), np.mean(V_ave[:,:,1])])
 
 # v = np.array([1, 1, 1])
 # s =1./np.sqrt(2)

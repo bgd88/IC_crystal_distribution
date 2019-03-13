@@ -421,3 +421,22 @@ def get_cubic_Pwavespeeds(c11, c12, c44, rho, N=100):
 
     v = np.sqrt(rhov2/rho)
     return phi, theta, v
+
+def get_bulk(C):
+    M = get_hooke_law_matrix(C)
+    return (M[0][0]+M[1][1]+M[2][2]+2*(M[0][1]+M[0][2]+M[1][2]))/9
+
+def get_shear(C):
+    M = get_hooke_law_matrix(C)
+    return ((M[0][0]+M[1][1]+M[2][2]) - (M[0][1]+M[0][2]+M[1][2]) \
+            + 3*(M[3][3]+M[4][4]+M[5][5]))/15
+
+# Create test for this by checking on ISOtropic matrices, Cubic which we
+# hvae expressions for the isotropic part and rotating and averaging a generic matrix
+def get_iso_velocites(C, rho):
+    bulk = get_bulk(C)
+    shear = get_shear(C)
+    P  = np.sqrt((bulk + 4.0*shear/3)/rho)
+    S  = np.sqrt(shear/rho)
+    return P, S
+    
