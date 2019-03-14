@@ -1,10 +1,9 @@
 import numpy as np
 from functools import reduce
+
 from array_utils import print_cs, zero_threshold
-#import matplotlib as mpl
-# from plot_utils import pgf_with_latex
-# mpl.rcParams.update(pgf_with_latex)
-import matplotlib.pyplot as plt
+from io_utils import *
+from plot_utils import *
 
 def get_spherical_coordinates(x,y,z):
     r = np.sqrt(x**2 + y**2 + z**2)
@@ -77,6 +76,115 @@ class randomEulerRotation(randomRotation):
 
     def _gen_rand_rot_matrix(self, crot):
         return euler_rotation_matrix(*crot)
+
+class EulerRotationDistribution(randomEulerRotation):
+    def __init__(self):
+        super().__init__()
+
+    def _gen_rand_rot_az(self):
+        alpha = np.random.uniform(0, 2*np.pi)
+        # When sampling in the phi direction, we don't actually
+        # want it to be uniform
+        beta = np.arccos(1-2*np.random.uniform(0, 1))
+        gamma = np.random.uniform(0, 2*np.pi)
+        return [alpha, beta, gamma]
+
+    def _gen_rand_rot_matrix(self, crot):
+        return euler_rotation_matrix(*crot)
+
+class compositeElasticityTensor:
+    def __init__(self, C_ijkl, rho, R_dist=randomEulerRotation(), ID='randomly_oriented', wDir=''):
+        self.rho = rho
+        # single_crystal_C_ijkl
+        self.sc_Cijkl = C_ijkl
+        self.sc_phi, self.sc_theta, self.sc_vel = get_eig_wavespeeds(C_ijkl, rho)
+        # Rotation Distribution
+        self.R = R_dist
+        self.num_crystal = 0
+        self._sum_Cijkl = np.zeros_like(C_ijkl)
+        # composite C_ijkl
+        self.Cijkl = None
+        self.phi = self.theta = self.vel = None
+        self.converged  = False
+        self.vel_names = ['Smin', 'Smax', 'P']
+        self.ID = ID
+        self.wDir = wDir
+        self.cDir = self.wDir + f'{ID}/'
+        self.fDir = self.cDir + 'figures/'
+        self.verbose = True
+        self._set_directories()
+
+    def get_wavespeeds(self):
+        return self.phi, self.theta, self.comp_vel
+
+    def add_samples(self, N=1):
+        num = int(N)
+        self._print("Adding {} crystals...".format(num))
+        for ii in np.arange(num):
+            self._sum_Cijkl  += transform_tensor(self.sc_Cijkl, self.R())
+            self.num_crystal += 1
+        self._print("Calculating new average Cijkl...")
+        self.Cijkl = self._sum_Cijkl/self.num_crystal
+        self._print("Calculating wavespeeds..")
+        self._set_velocity()
+
+    def reset_composition(self):
+        self.num_crystal = 0
+        self._sum_Cijkl = np.zeros_like(C_ijkl)
+
+    def plot_wavespeeds(self, comp=None, show=False, save=True):
+        if comp is None:
+            for ii in np.arange(3):
+                fname = self.vel_names[ii]
+                v = self.comp_vel[:, :, ii]
+                f = plot_wavespeeds(self.phi, self.theta, v*1.e-3)
+                f.axes[0].set_title(r'{}-wavespeeds'.format(fname))
+                f.axes[1].set_ylabel('km/s')
+                if save:
+                    self._print("Plotting {}-wavespeeds to {}".format(fname, self.fDir))
+                    f.savefig(self.fDir + '{}_wavespeeds_N{}_pm.pdf'.format(fname, self.num_crystal))
+                if show:
+                    plt.show()
+                plt.close(f)
+
+    def test_convergence(self):
+        raise NotImplementedError
+
+    def build_composite(self):
+        raise NotImplementedError
+
+    def _set_directories(self):
+        self._print("Creating directories:")
+        [self._print(s) for s in [self.wDir, self.cDir, self.fDir]]
+        [safe_make(sd) for sd in [self.wDir, self.cDir, self.fDir]]
+
+    def _set_velocity(self):
+        self.phi, self.theta, self.comp_vel = get_eig_wavespeeds(self.Cijkl, self.rho)
+
+
+
+    def _print(self, string):
+        if self.verbose:
+            print(string)
+
+
+    def plot_az_dist(self, show=False, save=True):
+        f = self.R.plot_az_distribution()
+        if save:
+            self._print("Plotting azimuth distributions to {}".format(self.fDir))
+            f.savefig(self.fDir +'az_dist.pdf')
+        if show:
+            plt.show()
+        plt.close(f)
+
+    def plot_axes_dist(self, show=False, save=True):
+        f = self.R.plot_axes_dist()
+        if save:
+            self._print("Plotting axes distributions to {}".format(self.fDir))
+            f.savefig(self.fDir +'axes_dist.pdf')
+        if show:
+            plt.show()
+        plt.close(f)
 
 def gen_rand_az(az_range=[0, 2*np.pi]):
     return np.random.uniform(az_range[0], az_range[1])
@@ -439,4 +547,3 @@ def get_iso_velocites(C, rho):
     P  = np.sqrt((bulk + 4.0*shear/3)/rho)
     S  = np.sqrt(shear/rho)
     return P, S
-    
