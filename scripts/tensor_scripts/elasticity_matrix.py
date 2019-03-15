@@ -102,7 +102,7 @@ class singeCrystalTensor:
         self.cDir = self.wDir + f'{ID}/'
         self.fDir = self.cDir + 'figures/'
         self.verbose = True
-        self.rot = None
+        self.rot_log = None
         self._set_directories()
 
         # self._set_Cijkl(self)
@@ -124,7 +124,11 @@ class singeCrystalTensor:
             print(string)
 
     def rotate(self, alpha, beta, gamma):
-        
+        self._print("Performing euler rotation of Cijkl...")
+        self.rot_log.append([alpha, beta, gamma])
+        R = euler_rotation_matrix(alpha, beta, gamma)
+        self.Cijkl = transform_tensor(self.Cijkl, R)
+
     def get_wavespeeds(self):
         return self.phi, self.theta, self.vel
 
