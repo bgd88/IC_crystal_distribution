@@ -92,7 +92,7 @@ class zRotationDistribution(randomEulerRotation):
     def _gen_rand_rot_matrix(self, crot):
         return euler_rotation_matrix(*crot)
 
-class singeCrystalTensor:
+class singleCrystal:
     def __init__(self, ID='single_crystal', wDir=''):
         self.Cijkl = None
         self.Mij   = None
@@ -104,12 +104,6 @@ class singeCrystalTensor:
         self.verbose = True
         self.rot_log = None
         self._set_directories()
-
-        # self._set_Cijkl(self)
-        # self._set_vel(self)
-
-    def _set_Cijkl(self):
-        raise NotImplementedError
 
     def _set_velocity(self):
         self.phi, self.theta, self.vel = get_eig_wavespeeds(self.Cijkl, self.rho)
@@ -147,7 +141,32 @@ class singeCrystalTensor:
                     plt.show()
                 plt.close(f)
 
-class compositeElasticityTensor(singeCrystalTensor):
+class tranverselyIsotropicCrystal(singleCrystal):
+    def __init__(self, A, C, F, L, N, rho):
+        super().__init__()
+        self.elastic_params = {'A':A, 'C':C, 'F':F, 'L':L, 'N':N}
+        self.rho = rho
+        self._set_Cijkl()
+        self._set_velocity()
+
+    def _set_Cijkl(self):
+        self._print("Creating transversely isotropic elasticity tensor from A, C, F, L, N ...")
+        self.Cijkl = create_transversely_isotropic_tensor(**self.elastic_params)
+
+class cubicCrystal(singleCrystal):
+    def __init__(self, c11, c12, c44, rho):
+        super().__init__()
+        self.elastic_params = {'c11':c11, 'c12':c12, 'c44':c44}
+        self.rho = rho
+        self._set_Cijkl()
+        self._set_velocity()
+
+    def _set_Cijkl(self):
+        self._print("Creating cubic elasticity tensor from c11, c12, c44 ...")
+        self.Cijkl = create_cubic_elasticity_tensor(**self.elastic_params)
+
+
+class compositeElasticityTensor(singleCrystal):
     def __init__(self, C_ijkl, rho, R_dist=randomEulerRotation(), ID='randomly_oriented', wDir=''):
         super().__init__(ID, wDir)
         self.rho = rho

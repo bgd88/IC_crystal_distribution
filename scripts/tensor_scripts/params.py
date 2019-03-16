@@ -12,11 +12,11 @@ Temperature = 6000 # [K]
 #       of 2 in definition of c44: \hat{c44} = 2*c44 --> c44 = \hat{c44}/2
 FeSi_elastic_params = {'c11' : c11_hat,
                        'c12' : c12_hat,
-                       'c44' : c44_hat/2 }
+                       'c44' : c44_hat/2}
 
 # Inversion of A, C, F, L, N from Ishii 2002 & PREM constrains
 prem_elastic_parms = {'A' : 1.6667*1.e12,
                       'C' : 1.6088*1.e12,
                       'F' : 1.1727*1.e12,
                       'L' : 0.2561*1.e12,
-                      'N' : 0.2397*1.e12 }
+                      'N' : 0.2397*1.e12}
