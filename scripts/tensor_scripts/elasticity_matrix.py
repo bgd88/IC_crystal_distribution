@@ -93,7 +93,7 @@ class zRotationDistribution(randomEulerRotation):
         return euler_rotation_matrix(*crot)
 
 class singleCrystal:
-    def __init__(self, ID='single_crystal', wDir=''):
+    def __init__(self, ID='single_crystal', wDir='', res=100):
         self.Cijkl = None
         self.Mij   = None
         self.rho   = None
@@ -102,15 +102,14 @@ class singleCrystal:
         self.cDir = self.wDir + f'{ID}/'
         self.fDir = self.cDir + 'figures/'
         self.verbose = True
-        self.rot_log = None
-        self._set_directories()
+        self.rot_log = []
+        self.vel_names = ['Smin', 'Smax', 'P']
+        self.res = res
 
     def _set_velocity(self):
-        self.phi, self.theta, self.vel = get_eig_wavespeeds(self.Cijkl, self.rho)
+        self.phi, self.theta, self.vel = get_eig_wavespeeds(self.Cijkl, self.rho, self.res)
 
     def _set_directories(self):
-        self._print("Creating directories:")
-        [self._print(s) for s in [self.wDir, self.cDir, self.fDir]]
         [safe_make(sd) for sd in [self.wDir, self.cDir, self.fDir]]
 
     def _print(self, string):
@@ -122,6 +121,7 @@ class singleCrystal:
         self.rot_log.append([alpha, beta, gamma])
         R = euler_rotation_matrix(alpha, beta, gamma)
         self.Cijkl = transform_tensor(self.Cijkl, R)
+        self._set_velocity()
 
     def get_wavespeeds(self):
         return self.phi, self.theta, self.vel
@@ -135,15 +135,19 @@ class singleCrystal:
                 f.axes[0].set_title(r'{}-wavespeeds'.format(fname))
                 f.axes[1].set_ylabel('km/s')
                 if save:
+                    self._set_directories()
                     self._print("Plotting {}-wavespeeds to {}".format(fname, self.fDir))
-                    f.savefig(self.fDir + '{}_wavespeeds_N{}_pm.pdf'.format(fname, self.num_crystal))
+                    f.savefig(self.fDir + '{}_wavespeed.pdf'.format(fname))
                 if show:
                     plt.show()
                 plt.close(f)
 
+    def get_iso_velocites(self):
+        return get_iso_velocites(self.Cijkl)
+
 class tranverselyIsotropicCrystal(singleCrystal):
-    def __init__(self, A, C, F, L, N, rho):
-        super().__init__()
+    def __init__(self, A, C, F, L, N, rho, ID='tranversely_isotropic_crystal', wDir='', res=100):
+        super().__init__(ID=ID, wDir=wDir, res=res)
         self.elastic_params = {'A':A, 'C':C, 'F':F, 'L':L, 'N':N}
         self.rho = rho
         self._set_Cijkl()
@@ -154,8 +158,8 @@ class tranverselyIsotropicCrystal(singleCrystal):
         self.Cijkl = create_transversely_isotropic_tensor(**self.elastic_params)
 
 class cubicCrystal(singleCrystal):
-    def __init__(self, c11, c12, c44, rho):
-        super().__init__()
+    def __init__(self, c11, c12, c44, rho, ID='cubic_crystal', wDir='', res=100):
+        super().__init__(ID=ID, wDir=wDir, res=res)
         self.elastic_params = {'c11':c11, 'c12':c12, 'c44':c44}
         self.rho = rho
         self._set_Cijkl()
@@ -167,12 +171,11 @@ class cubicCrystal(singleCrystal):
 
 
 class compositeElasticityTensor(singleCrystal):
-    def __init__(self, C_ijkl, rho, R_dist=randomEulerRotation(), ID='randomly_oriented', wDir=''):
-        super().__init__(ID, wDir)
+    def __init__(self, C_ijkl, rho, R_dist=randomEulerRotation(), ID='randomly_oriented', wDir='', res=100):
+        super().__init__(ID=ID, wDir=wDir, res=res)
         self.rho = rho
         # single_crystal_C_ijkl
         self.sc_Cijkl = C_ijkl
-        self.sc_phi, self.sc_theta, self.sc_vel = get_eig_wavespeeds(C_ijkl, rho)
         # Rotation Distribution
         self.R = R_dist
         self.num_crystal = 0
@@ -181,7 +184,6 @@ class compositeElasticityTensor(singleCrystal):
         self.Cijkl = None
         self.phi = self.theta = self.vel = None
         self.converged  = False
-        self.vel_names = ['Smin', 'Smax', 'P']
         self.ID = ID
 
     def add_samples(self, N=1):
@@ -208,6 +210,7 @@ class compositeElasticityTensor(singleCrystal):
     def plot_az_dist(self, show=False, save=True):
         f = self.R.plot_az_distribution()
         if save:
+            self._set_directories()
             self._print("Plotting azimuth distributions to {}".format(self.fDir))
             f.savefig(self.fDir +'az_dist.pdf')
         if show:
@@ -217,11 +220,34 @@ class compositeElasticityTensor(singleCrystal):
     def plot_axes_dist(self, show=False, save=True):
         f = self.R.plot_axes_dist()
         if save:
+            self._set_directories()
             self._print("Plotting axes distributions to {}".format(self.fDir))
             f.savefig(self.fDir +'axes_dist.pdf')
         if show:
             plt.show()
         plt.close(f)
+
+    def plot_wavespeeds(self, comp=None, show=False, save=True):
+        if comp is None:
+            for ii in np.arange(3):
+                fname = self.vel_names[ii]
+                v = self.vel[:, :, ii]
+                f = plot_wavespeeds(self.phi, self.theta, v*1.e-3)
+                f.axes[0].set_title(r'{}-wavespeeds'.format(fname))
+                f.axes[1].set_ylabel('km/s')
+                if save:
+                    self._set_directories()
+                    self._print("Plotting {}-wavespeeds to {}".format(fname, self.fDir))
+                    f.savefig(self.fDir + '{}_wavespeeds_N{}.pdf'.format(fname, self.num_crystal))
+                if show:
+                    plt.show()
+                plt.close(f)
+                
+def ave_rotate_z(Cijkl, int_num=360):
+    temp = np.zeros_like(Cijkl)
+    for tt in np.linspace(0, 2*np.pi, int_num):
+        temp += transform_tensor(Cijkl, rotation_matrix(tt))/int_num
+    return temp
 
 def gen_rand_az(az_range=[0, 2*np.pi]):
     return np.random.uniform(az_range[0], az_range[1])
@@ -584,3 +610,8 @@ def get_iso_velocites(C, rho):
     P  = np.sqrt((bulk + 4.0*shear/3)/rho)
     S  = np.sqrt(shear/rho)
     return P, S
+
+def prem_speeds(A, C, F, L, N, rho):
+    vp = np.sqrt((8*A + 3*C + 4*F + 8*L)/(15.*rho))
+    vs = np.sqrt((A + C -2*F + 6*L + 5*N)/(15.*rho))
+    return vp, vs

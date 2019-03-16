@@ -15,8 +15,8 @@ FeSi_elastic_params = {'c11' : c11_hat,
                        'c44' : c44_hat/2}
 
 # Inversion of A, C, F, L, N from Ishii 2002 & PREM constrains
-prem_elastic_parms = {'A' : 1.6667*1.e12,
-                      'C' : 1.6088*1.e12,
-                      'F' : 1.1727*1.e12,
-                      'L' : 0.2561*1.e12,
-                      'N' : 0.2397*1.e12}
+prem_elastic_parms = {'A' : 1558.7*1.e9,
+                      'C' : 1504.5*1.e9,
+                      'F' : 1239.0*1.e9,
+                      'L' :  168.3*1.e9,
+                      'N' :  153.0*1.e9 }

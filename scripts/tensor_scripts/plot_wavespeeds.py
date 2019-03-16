@@ -59,3 +59,23 @@ f.axes[0].set_title(r'$V_{Smax}$ from Eigenvalues of Christoffel Tensor')
 f.axes[1].set_ylabel('km/s')
 f.savefig(figDir+'6_Smax_eig_wavespeeds.pdf')
 plt.close(f)
+
+# Isotropic Distribution
+R = randomEulerRotation()
+FeSi = cubicCrystal(**FeSi_elastic_params, rho=rho)
+Cijkl = compositeElasticityTensor(FeSi.Cijkl, FeSi.rho, R, wDir = wDir)
+Cijkl.add_samples(1.e3)
+Cijkl.plot_wavespeeds()
+Cijkl.plot_az_dist()
+Cijkl.plot_axes_dist()
+
+# Zonal Distribution
+Z = zRotationDistribution()
+Zijkl = compositeElasticityTensor(FeSi.Cijkl, FeSi.rho, Z, wDir=wDir, ID='Zrot')
+Zijkl.add_samples(1.e3)
+Zijkl.plot_wavespeeds()
+Zijkl.plot_az_dist()
+Zijkl.plot_axes_dist()
+
+PREM = tranverselyIsotropicCrystal(**prem_elastic_parms, rho=rho,wDir=wDir, ID='PREM')
+PREM.plot_wavespeeds()
