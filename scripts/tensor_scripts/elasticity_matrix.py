@@ -1,5 +1,7 @@
 import numpy as np
 from functools import reduce
+from scipy.special import i0
+from scipy.stats import vonmises
 
 from array_utils import print_cs, zero_threshold
 from io_utils import *
@@ -78,6 +80,36 @@ class randomEulerRotation(randomRotation):
         return euler_rotation_matrix(*crot)
 
 class zRotationDistribution(randomEulerRotation):
+    def __init__(self):
+        super().__init__()
+
+    def _gen_rand_rot_az(self):
+        alpha = np.random.uniform(0, 2*np.pi)
+        # When sampling in the phi direction, we don't actually
+        # want it to be uniform
+        beta = 0
+        gamma = 0
+        return [alpha, beta, gamma]
+
+    def _gen_rand_rot_matrix(self, crot):
+        return euler_rotation_matrix(*crot)
+
+class zRotationDistribution(randomEulerRotation):
+    def __init__(self):
+        super().__init__()
+
+    def _gen_rand_rot_az(self):
+        alpha = np.random.uniform(0, 2*np.pi)
+        # When sampling in the phi direction, we don't actually
+        # want it to be uniform
+        beta = 0
+        gamma = 0
+        return [alpha, beta, gamma]
+
+    def _gen_rand_rot_matrix(self, crot):
+        return euler_rotation_matrix(*crot)
+
+class vonMisesRotate(randomEulerRotation):
     def __init__(self):
         super().__init__()
 
@@ -242,12 +274,18 @@ class compositeElasticityTensor(singleCrystal):
                 if show:
                     plt.show()
                 plt.close(f)
-                
+
 def ave_rotate_z(Cijkl, int_num=360):
     temp = np.zeros_like(Cijkl)
     for tt in np.linspace(0, 2*np.pi, int_num):
         temp += transform_tensor(Cijkl, rotation_matrix(tt))/int_num
     return temp
+
+def get_vonMises_pdf(x, mu, kappa):
+    # x = np.linspace(-np.pi, np.pi, num=51)
+    pdf = np.exp(kappa*np.cos(x-mu))/(2*np.pi*i0(kappa))
+    return pdf
+
 
 def gen_rand_az(az_range=[0, 2*np.pi]):
     return np.random.uniform(az_range[0], az_range[1])
