@@ -61,6 +61,16 @@ for ii in np.arange(3):
     plt.savefig(VM.fDir+"PREM_Percent_Diff_Comp_{}.pdf".format(VM.vel_names[ii]))
     plt.close()
 
+for ii in np.arange(3):
+    plt.plot(np.cos(VM.theta[:,0]*d2r)**2, VM.vel[:,0,ii]*1.e-3)
+    plt.plot(np.cos(VM.theta[:,0]*d2r)**2, PREM.vel[:,0,ii]*1.e-3)
+    plt.xlabel(r'$\vartheta$')
+    plt.ylabel('km/s')
+    plt.title(VM.vel_names[ii])
+    # plt.gca().set_ylim(bottom=0)
+    plt.gca().set_xlim([0,np.pi/2])
+    plt.savefig(VM.fDir+"PREM_vs_COMP_{}cos.pdf".format(VM.vel_names[ii]))
+    plt.close('all')
 
 N=20
 count=0
@@ -157,3 +167,14 @@ plt.contourf(phi, theta, diff[:,:,2]*1.e-3)
 plt.colorbar()
 plt.xlabel(r'$\varphi$')
 plt.ylabel(r'$\vartheta$')
+
+ for ii in np.arange(3):
+    plt.plot(np.cos(VM.theta[:,0]*d2r)**2, VM.vel[:,0,ii]*1.e-3)
+    plt.plot(np.cos(VM.theta[:,0]*d2r)**2, PREM.vel[:,0,ii]*1.e-3)
+    plt.xlabel(r'$\vartheta$')
+    plt.ylabel('km/s')
+    plt.title(VM.vel_names[ii])
+    # plt.gca().set_ylim(bottom=0)
+    plt.gca().set_xlim([0,np.pi/2])
+    plt.savefig(VM.fDir+"PREM_vs_COMP_{}cos.pdf".format(VM.vel_names[ii]))
+    plt.close('all')
