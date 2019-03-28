@@ -5,10 +5,51 @@ import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 
-# Create Elasticity 4-Tensor
-C = create_cubic_elasticity_tensor(c11, c12, c44)
+res=20
+PREM = tranverselyIsotropicCrystal(**prem_elastic_parms, rho=rho, wDir=wDir, ID='PREM', res=res)
+FeSi = cubicCrystal(**FeSi_elastic_params, rho=rho)
 
-phi, theta, v_analytic = get_cubic_Pwavespeeds(c11, c12, c44, rho, 100)
+# Zonal Distribution
+Z = compositeElasticityTensor(FeSi.Cijkl, FeSi.rho, zRotationDistribution(), wDir=wDir, ID='Zrot')
+Z.add_samples(1.e3)
+Z.plot_wavespeeds()
+Z.plot_az_dist()
+Z.plot_axes_dist()
+
+Z.reset_composition()
+Z.ave_rot_axis(axis='z')
+Z.plot_wavespeeds(prefix='Int')
+
+# Von Mises
+
+VM = compositeElasticityTensor(FeSi.Cijkl, FeSi.rho, vonMisesRotate(0, 10), \
+                                    wDir=wDir, ID='VonMises')
+VM.add_samples(1.e3)
+VM.plot_wavespeeds()
+VM.plot_az_dist()
+VM.plot_axes_dist()
+
+
+PREM = tranverselyIsotropicCrystal(**prem_elastic_parms, rho=rho, wDir=wDir, ID='PREM', res=res)
+FeSi = cubicCrystal(**FeSi_elastic_params, rho=rho)
+
+################################
+PREM = tranverselyIsotropicCrystal(**prem_elastic_parms, rho=rho,wDir=wDir, ID='PREM')
+PREM.plot_wavespeeds()
+
+# Isotropic Distribution
+FeSi = cubicCrystal(**FeSi_elastic_params, rho=rho)
+Cijkl = compositeElasticityTensor(FeSi.Cijkl, FeSi.rho, randomEulerRotation(), wDir=wDir)
+Cijkl.add_samples(1.e3)
+Cijkl.plot_wavespeeds()
+Cijkl.plot_az_dist()
+Cijkl.plot_axes_dist()
+
+#######################################
+#Create Elasticity 4-Tensor
+C = create_cubic_elasticity_tensor(**FeSi_elastic_params)
+
+phi, theta, v_analytic = get_cubic_Pwavespeeds(**FeSi_elastic_params, rho, 100)
 phi, theta, v_numeric  = get_acoustic_Pwavespeeds(C, rho, 100)
 phi, theta, v_all = get_eig_wavespeeds(C, rho)
 v_eig = v_all[:, :, 2]
@@ -59,23 +100,3 @@ f.axes[0].set_title(r'$V_{Smax}$ from Eigenvalues of Christoffel Tensor')
 f.axes[1].set_ylabel('km/s')
 f.savefig(figDir+'6_Smax_eig_wavespeeds.pdf')
 plt.close(f)
-
-# Isotropic Distribution
-R = randomEulerRotation()
-FeSi = cubicCrystal(**FeSi_elastic_params, rho=rho)
-Cijkl = compositeElasticityTensor(FeSi.Cijkl, FeSi.rho, R, wDir = wDir)
-Cijkl.add_samples(1.e3)
-Cijkl.plot_wavespeeds()
-Cijkl.plot_az_dist()
-Cijkl.plot_axes_dist()
-
-# Zonal Distribution
-Z = zRotationDistribution()
-Zijkl = compositeElasticityTensor(FeSi.Cijkl, FeSi.rho, Z, wDir=wDir, ID='Zrot')
-Zijkl.add_samples(1.e3)
-Zijkl.plot_wavespeeds()
-Zijkl.plot_az_dist()
-Zijkl.plot_axes_dist()
-
-PREM = tranverselyIsotropicCrystal(**prem_elastic_parms, rho=rho,wDir=wDir, ID='PREM')
-PREM.plot_wavespeeds()

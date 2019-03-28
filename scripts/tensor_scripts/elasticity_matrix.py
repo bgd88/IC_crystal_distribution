@@ -94,35 +94,20 @@ class zRotationDistribution(randomEulerRotation):
     def _gen_rand_rot_matrix(self, crot):
         return euler_rotation_matrix(*crot)
 
-class zRotationDistribution(randomEulerRotation):
-    def __init__(self):
-        super().__init__()
-
-    def _gen_rand_rot_az(self):
-        alpha = np.random.uniform(0, 2*np.pi)
-        # When sampling in the phi direction, we don't actually
-        # want it to be uniform
-        beta = 0
-        gamma = 0
-        return [alpha, beta, gamma]
-
-    def _gen_rand_rot_matrix(self, crot):
-        return euler_rotation_matrix(*crot)
-
 class vonMisesRotate(randomEulerRotation):
-    def __init__(self):
+    def __init__(self, mu=0, kappa=1):
         super().__init__()
+        self.mu = mu
+        self.kappa = kappa
 
     def _gen_rand_rot_az(self):
-        alpha = np.random.uniform(0, 2*np.pi)
-        # When sampling in the phi direction, we don't actually
-        # want it to be uniform
-        beta = 0
+        alpha = 0
+        beta =  np.random.vonmises(self.mu, self.kappa)
         gamma = 0
         return [alpha, beta, gamma]
 
     def _gen_rand_rot_matrix(self, crot):
-        return euler_rotation_matrix(*crot)
+        return rotation_matrix(*crot)
 
 class singleCrystal:
     def __init__(self, ID='single_crystal', wDir='', res=100):
@@ -158,7 +143,7 @@ class singleCrystal:
     def get_wavespeeds(self):
         return self.phi, self.theta, self.vel
 
-    def plot_wavespeeds(self, comp=None, show=False, save=True):
+    def plot_wavespeeds(self, comp=None, show=False, save=True, prefix='', suffix=''):
         if comp is None:
             for ii in np.arange(3):
                 fname = self.vel_names[ii]
@@ -169,13 +154,21 @@ class singleCrystal:
                 if save:
                     self._set_directories()
                     self._print("Plotting {}-wavespeeds to {}".format(fname, self.fDir))
-                    f.savefig(self.fDir + '{}_wavespeed.pdf'.format(fname))
+                    f.savefig(self.fDir + '{}_{}_wavespeed_{}.pdf'.format(prefix, fname, suffix))
                 if show:
                     plt.show()
                 plt.close(f)
 
     def get_iso_velocites(self):
         return get_iso_velocites(self.Cijkl)
+
+    def ave_rot_axis(self, axis='z', int_num=360):
+        if axis == 'z':
+            self._print("Rotating and averaging about z axis...")
+            self.Cijkl = ave_rotate_z(self.Cijkl, int_num=int_num)
+            self._print("Setting velocity...")
+            self._set_velocity()
+
 
 class tranverselyIsotropicCrystal(singleCrystal):
     def __init__(self, A, C, F, L, N, rho, ID='tranversely_isotropic_crystal', wDir='', res=100):
@@ -213,7 +206,7 @@ class compositeElasticityTensor(singleCrystal):
         self.num_crystal = 0
         self._sum_Cijkl = np.zeros_like(C_ijkl)
         # composite C_ijkl
-        self.Cijkl = None
+        self.Cijkl = C_ijkl
         self.phi = self.theta = self.vel = None
         self.converged  = False
         self.ID = ID
@@ -231,7 +224,11 @@ class compositeElasticityTensor(singleCrystal):
 
     def reset_composition(self):
         self.num_crystal = 0
-        self._sum_Cijkl = np.zeros_like(C_ijkl)
+        self._sum_Cijkl = np.zeros_like(self.Cijkl)
+        self.phi = self.theta = self.vel = None
+        self.Cijkl = self.sc_Cijkl
+        self.converged  = False
+        self._print("Reseting Crystal Composition...")
 
     def test_convergence(self):
         raise NotImplementedError
@@ -259,21 +256,9 @@ class compositeElasticityTensor(singleCrystal):
             plt.show()
         plt.close(f)
 
-    def plot_wavespeeds(self, comp=None, show=False, save=True):
-        if comp is None:
-            for ii in np.arange(3):
-                fname = self.vel_names[ii]
-                v = self.vel[:, :, ii]
-                f = plot_wavespeeds(self.phi, self.theta, v*1.e-3)
-                f.axes[0].set_title(r'{}-wavespeeds'.format(fname))
-                f.axes[1].set_ylabel('km/s')
-                if save:
-                    self._set_directories()
-                    self._print("Plotting {}-wavespeeds to {}".format(fname, self.fDir))
-                    f.savefig(self.fDir + '{}_wavespeeds_N{}.pdf'.format(fname, self.num_crystal))
-                if show:
-                    plt.show()
-                plt.close(f)
+    def plot_wavespeeds(self, comp=None, show=False, save=True, prefix='', suffix=''):
+        Nsuffix = 'N{}_{}'.format(self.num_crystal, suffix)
+        super().plot_wavespeeds(comp=None, show=False, save=True, prefix=prefix, suffix=Nsuffix)
 
 def ave_rotate_z(Cijkl, int_num=360):
     temp = np.zeros_like(Cijkl)
@@ -281,11 +266,17 @@ def ave_rotate_z(Cijkl, int_num=360):
         temp += transform_tensor(Cijkl, rotation_matrix(tt))/int_num
     return temp
 
-def get_vonMises_pdf(x, mu, kappa):
-    # x = np.linspace(-np.pi, np.pi, num=51)
-    pdf = np.exp(kappa*np.cos(x-mu))/(2*np.pi*i0(kappa))
-    return pdf
+def ave_vonMises_rotate(Cijkl, mu, kappa, int_num=360):
+    temp = np.zeros_like(Cijkl)
+    pdf = get_vonMises_pdf(mu, kappa)
+    t_list = np.linspace(0, 2*np.pi, int_num)
+    INT = np.trapz(pdf(t_list))
+    for tt in t_list:
+        temp += pdf(tt)*transform_tensor(Cijkl, rotation_matrix(0, tt))/INT
+    return temp
 
+def get_vonMises_pdf(mu, kappa):
+    return lambda x: np.exp(kappa*np.cos(x-mu))/(2*np.pi*i0(kappa))
 
 def gen_rand_az(az_range=[0, 2*np.pi]):
     return np.random.uniform(az_range[0], az_range[1])
