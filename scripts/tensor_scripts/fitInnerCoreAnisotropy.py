@@ -11,15 +11,15 @@ r2d = 180. / np.pi
 
 def fit_dist(model, SC, N=10):
     count=0
-    theta_list = np.linspace(0, 90, N)
+    theta_list = np.linspace(0, np.pi/2, N)
     residual = np.zeros([len(theta_list),])
-    kappa_list=np.linspace(0, 20, N)
+    kappa_list=np.linspace(0, 10, N)
     klist = {}
     tlist = {}
     for ii, t in enumerate(theta_list):
         count += 1
-        print("Theta = {%2.2f}, {} of {}".format(t, count, residual.size))
-        kappa_best, residual = fit_vonMises_dist(PREM, FeSi, t, kappa_list)
+        print("Theta = {:.2f}, {} of {}".format(t*r2d, count, residual.size))
+        kappa_best, _ = fit_vonMises_dist(PREM, FeSi, t, kappa_list)
         klist[str(t)] = kappa_best
         R = rotation_matrix(0, t, 0)
         temp = transform_tensor(SC.Cijkl, R)
@@ -27,13 +27,13 @@ def fit_dist(model, SC, N=10):
                                         wDir=wDir, ID=str(count), res=SC.res, verbose=False)
         VM.add_samples(5.e3)
         VM.ave_rot_axis(int_num=1000)
-        res = np.sum((model.vel[:,:,2] - VM.vel[:,:,2])**2)
+        res = np.sum((model.vel[:,:,:] - VM.vel[:,:,:])**2)
         residual[ii] = res
         tlist[str(t)] = res
     ind = residual==np.min(residual, axis=0)
     theta_best = theta_list[ind][0]
     kappa_best = klist[str(theta_best)]
-    return kappa_best, theta_best, residual
+    return kappa_best, theta_best, [tlist, klist, residual]
 
 def fit_vonMises_dist(model, SC, theta, kappa_list=np.linspace(0, 25, 20)):
     count=0
@@ -47,7 +47,7 @@ def fit_vonMises_dist(model, SC, theta, kappa_list=np.linspace(0, 25, 20)):
                                         wDir=wDir, ID=str(count), res=SC.res, verbose=False)
         VM.add_samples(1.e3)
         VM.ave_rot_axis(int_num=1000)
-        residual[jj] = np.sum((model.vel[:,:,2] - VM.vel[:,:,2])**2)
+        residual[jj] = np.sum((model.vel[:,:,:] - VM.vel[:,:,:])**2)
     ind = residual==np.min(residual, axis=0)
     kappa_best = kappa_list[ind][0]
     print('Kappa Best is: {}'.format(kappa_best))
@@ -67,14 +67,26 @@ def plot_cos2(VM, model):
     return fig
     # plt.close('all')
 
+def plot_residuals(residuals):
+    fig, ax1 = plt.subplots()
+    plt.plot(np.fromiter(residual[0].keys(), dtype=float)*r2d , np.fromiter(residual[0].values(), dtype=float) )
+    plt.xlabel('Beta Rotation [degrees]')
+    plt.ylabel('Misfit')
+    ax2 = ax1.twinx()
+    plt.plot(np.fromiter(residual[1].keys(), dtype=float)*r2d , np.fromiter(residual[1].values(), dtype=float) , 'r')
+    plt.ylabel('Kappa Best')
+
 res=20
 # Inversion of A, C, F, L, N from Ishii 2002 & PREM constrains
 PREM = tranverselyIsotropicCrystal(**prem_elastic_parms, rho=rho, wDir=wDir, ID='PREM', res=res)
 FeSi = cubicCrystal(**FeSi_elastic_params, rho=rho, res=res)
 
 # Fit Parameters
-kappa_best, theta_best, residual = fit_dist(PREM, FeSi, N=5)
-
+kappa_best, theta_best, residual = fit_dist(PREM, FeSi, N=21)
+plot_residuals(residual)
+plt.plot(theta_best*r2d, kappa_best, '*k', ms=5)
+plt.savefig(wDir + "BestComp1/figures/residuals.pdf")
+plt.close()
 
 # Best Composition 1
 VM = compositeElasticityTensor(FeSi.Cijkl, FeSi.rho, vonMisesRotate(theta_best, kappa_best), \
@@ -84,6 +96,8 @@ VM.ave_rot_axis(int_num=1000)
 VM.plot_wavespeeds()
 VM.plot_az_dist()
 VM.plot_axes_dist()
+
+
 
 plot_cos2(VM, PREM)
 
