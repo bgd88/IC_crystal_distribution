@@ -9,3 +9,8 @@ def safe_make(dirname):
     #         raise
     except:
         pass
+
+def wrapper(func, *args, **kwargs):
+    def wrapped():
+        return func(*args, **kwargs)
+    return wrapped

@@ -110,7 +110,7 @@ class vonMisesRotate(randomEulerRotation):
         return rotation_matrix(*crot)
 
 class singleCrystal:
-    def __init__(self, ID='single_crystal', wDir='', res=100):
+    def __init__(self, ID='single_crystal', wDir='', res=100, verbose=True):
         self.Cijkl = None
         self.Mij   = None
         self.rho   = None
@@ -118,7 +118,7 @@ class singleCrystal:
         self.wDir = wDir
         self.cDir = self.wDir + f'{ID}/'
         self.fDir = self.cDir + 'figures/'
-        self.verbose = True
+        self.verbose = verbose
         self.rot_log = []
         self.vel_names = ['Smin', 'Smax', 'P']
         self.res = res
@@ -169,6 +169,15 @@ class singleCrystal:
             self._print("Setting velocity...")
             self._set_velocity()
 
+    def get_Voigt(self):
+        raise NotImplementedError
+
+    def get_Reuss(self):
+        raise NotImplementedError
+
+    def get_VRH(self):
+        raise NotImplementedError
+
 
 class tranverselyIsotropicCrystal(singleCrystal):
     def __init__(self, A, C, F, L, N, rho, ID='tranversely_isotropic_crystal', wDir='', res=100):
@@ -196,8 +205,9 @@ class cubicCrystal(singleCrystal):
 
 
 class compositeElasticityTensor(singleCrystal):
-    def __init__(self, C_ijkl, rho, R_dist=randomEulerRotation(), ID='randomly_oriented', wDir='', res=100):
-        super().__init__(ID=ID, wDir=wDir, res=res)
+    def __init__(self, C_ijkl, rho, R_dist=randomEulerRotation(), ID='randomly_oriented',
+                        wDir='', res=100, auto_set_vel=True, **kwargs):
+        super().__init__(ID=ID, wDir=wDir, res=res, **kwargs)
         self.rho = rho
         # single_crystal_C_ijkl
         self.sc_Cijkl = C_ijkl
@@ -210,6 +220,7 @@ class compositeElasticityTensor(singleCrystal):
         self.phi = self.theta = self.vel = None
         self.converged  = False
         self.ID = ID
+        self.auto_set_vel = auto_set_vel
 
     def add_samples(self, N=1):
         num = int(N)
@@ -220,7 +231,8 @@ class compositeElasticityTensor(singleCrystal):
         self._print("Calculating new average Cijkl...")
         self.Cijkl = self._sum_Cijkl/self.num_crystal
         self._print("Calculating wavespeeds..")
-        self._set_velocity()
+        if self.auto_set_vel:
+            self._set_velocity()
 
     def reset_composition(self):
         self.num_crystal = 0

@@ -9,35 +9,72 @@ import matplotlib.pyplot as plt
 d2r = np.pi / 180.
 r2d = 180. / np.pi
 
+def fit_dist(model, SC, N=10):
+    count=0
+    theta_list = np.linspace(0, 90, N)
+    residual = np.zeros([len(theta_list),])
+    kappa_list=np.linspace(0, 20, N)
+    klist = {}
+    tlist = {}
+    for ii, t in enumerate(theta_list):
+        count += 1
+        print("Theta = {%2.2f}, {} of {}".format(t, count, residual.size))
+        kappa_best, residual = fit_vonMises_dist(PREM, FeSi, t, kappa_list)
+        klist[str(t)] = kappa_best
+        R = rotation_matrix(0, t, 0)
+        temp = transform_tensor(SC.Cijkl, R)
+        VM = compositeElasticityTensor(temp, SC.rho, vonMisesRotate(0, kappa_best), \
+                                        wDir=wDir, ID=str(count), res=SC.res, verbose=False)
+        VM.add_samples(5.e3)
+        VM.ave_rot_axis(int_num=1000)
+        res = np.sum((model.vel[:,:,2] - VM.vel[:,:,2])**2)
+        residual[ii] = res
+        tlist[str(t)] = res
+    ind = residual==np.min(residual, axis=0)
+    theta_best = theta_list[ind][0]
+    kappa_best = klist[str(theta_best)]
+    return kappa_best, theta_best, residual
+
+def fit_vonMises_dist(model, SC, theta, kappa_list=np.linspace(0, 25, 20)):
+    count=0
+    residual = np.zeros([len(kappa_list),])
+    for jj, kappa in enumerate(kappa_list):
+        count += 1
+        # print("Kappa {} of {}".format(count, residual.size))
+        R = rotation_matrix(0, theta, 0)
+        temp = transform_tensor(SC.Cijkl, R)
+        VM = compositeElasticityTensor(temp, SC.rho, vonMisesRotate(0, kappa), \
+                                        wDir=wDir, ID=str(count), res=SC.res, verbose=False)
+        VM.add_samples(1.e3)
+        VM.ave_rot_axis(int_num=1000)
+        residual[jj] = np.sum((model.vel[:,:,2] - VM.vel[:,:,2])**2)
+    ind = residual==np.min(residual, axis=0)
+    kappa_best = kappa_list[ind][0]
+    print('Kappa Best is: {}'.format(kappa_best))
+    return kappa_best, residual
+
+
+def plot_cos2(VM, model):
+    fig = plt.figure()
+    plt.plot(np.cos(VM.theta[:,0]*d2r)**2, VM.vel[:,0,2]*1.e-3)
+    plt.plot(np.cos(VM.theta[:,0]*d2r)**2, model.vel[:,0,2]*1.e-3)
+    plt.xlabel(r'$\vartheta$')
+    plt.ylabel('km/s')
+    plt.title(VM.vel_names[2])
+    # plt.gca().set_ylim(bottom=0)
+    plt.gca().set_xlim([0,np.pi/2])
+    plt.savefig(VM.fDir+"PREM_vs_COMP_{}cos.pdf".format(VM.vel_names[ii]))
+    return fig
+    # plt.close('all')
+
 res=20
 # Inversion of A, C, F, L, N from Ishii 2002 & PREM constrains
 PREM = tranverselyIsotropicCrystal(**prem_elastic_parms, rho=rho, wDir=wDir, ID='PREM', res=res)
-FeSi = cubicCrystal(**FeSi_elastic_params, rho=rho)
+FeSi = cubicCrystal(**FeSi_elastic_params, rho=rho, res=res)
 
-N=10
-count=0
-residual = np.zeros([N,N])
-kappa_list = np.linspace(1, 10, N)
-theta_list = np.linspace(40, 60, N)
-residual = np.zeros([len(theta_list),len(kappa_list)])
-for ii, t in enumerate(theta_list):
-    for jj, kappa in enumerate(kappa_list):
-        R = rotation_matrix(0, t, 0)
-        temp = transform_tensor(FeSi.Cijkl, R)
-        VM = compositeElasticityTensor(temp, FeSi.rho, vonMisesRotate(0, kappa), \
-                                            wDir=wDir, ID=str(count), res=res)
-        VM.add_samples(5.e3)
-        VM.ave_rot_axis(int_num=1000)
-        residual[ii,jj] = np.sum((PREM.vel - VM.vel)**2)
-        count += 1
-        print("{} of {}".format(count, len(theta_list)*len(kappa_list)))
-plt.pcolor(residual)
-plt.colorbar()
+# Fit Parameters
+kappa_best, theta_best, residual = fit_dist(PREM, FeSi, N=5)
 
-col = np.argmin(np.min(residual, axis=1))
-row = np.argmin(np.min(residual, axis=0))
-kappa_best = kappa_list[row]
-theta_best = theta_list[col]
 
 # Best Composition 1
 VM = compositeElasticityTensor(FeSi.Cijkl, FeSi.rho, vonMisesRotate(theta_best, kappa_best), \
@@ -47,6 +84,8 @@ VM.ave_rot_axis(int_num=1000)
 VM.plot_wavespeeds()
 VM.plot_az_dist()
 VM.plot_axes_dist()
+
+plot_cos2(VM, PREM)
 
 diff = PREM.vel - VM.vel
 for ii in np.arange(3):
@@ -167,14 +206,3 @@ plt.contourf(phi, theta, diff[:,:,2]*1.e-3)
 plt.colorbar()
 plt.xlabel(r'$\varphi$')
 plt.ylabel(r'$\vartheta$')
-
- for ii in np.arange(3):
-    plt.plot(np.cos(VM.theta[:,0]*d2r)**2, VM.vel[:,0,ii]*1.e-3)
-    plt.plot(np.cos(VM.theta[:,0]*d2r)**2, PREM.vel[:,0,ii]*1.e-3)
-    plt.xlabel(r'$\vartheta$')
-    plt.ylabel('km/s')
-    plt.title(VM.vel_names[ii])
-    # plt.gca().set_ylim(bottom=0)
-    plt.gca().set_xlim([0,np.pi/2])
-    plt.savefig(VM.fDir+"PREM_vs_COMP_{}cos.pdf".format(VM.vel_names[ii]))
-    plt.close('all')
