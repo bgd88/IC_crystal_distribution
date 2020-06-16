@@ -137,6 +137,14 @@ class testTensorRotations(unittest.TestCase):
             Cprime = transform_tensor(C, R)
             assert self._are_equal([C, Cprime]), "Cubic symmetry not preserved!"
 
+    def test_isotropic_velocities(self):
+        for i in np.arange(N_iters):
+            C = self._gen_rand_sym_mat([3,3,3,3])
+            rho = 1.
+            v = get_iso_velocites(C, rho)
+            v_prime = get_iso_velocites(transform_tensor(C, self._gen_rand_rot()), rho)
+            assert self._are_equal([np.array(v), np.array(v_prime)]), "Rotation changed isotropic velocity"
+
     def test_transverseley_isotropic_symmetry(self):
         for i in np.arange(N_iters):
             tran_iso_params = self._gen_rand_mat([5,])

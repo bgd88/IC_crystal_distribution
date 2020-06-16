@@ -1,136 +1,222 @@
 from elasticity_matrix import *
+from params import *
 from array_utils import print_cs
 import numpy as np
 import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 
-figDir = "../../figures/"
-c11 = 1405.9  * 1.e9 # [Pa]
-c12 = 1364.8  * 1.e9 # [Pa]
-# NOTE: Taku's Values are given in Voight Notation, so there is an extra factor
-#       of 2 in definition of c44: \hat{c44} = 2*c44 --> c44 = \hat{c44}/2
-c44 =  397.9  * 1.e9# [Pa]
-# c44 = c44_hat/2
-rho =   12.98 * 1.e3 # [kg/m^3]
+d2r = np.pi / 180.
+r2d = 180. / np.pi
 
-Pressure =  357.5 * 1.e9 # [Pa]
-Temperature = 6000 # [K]
+def fit_dist(model, SC, N=10):
+    count=0
+    theta_list = np.linspace(0, np.pi/2, N)
+    residual = np.zeros([len(theta_list),])
+    kappa_list=np.linspace(0, 10, N)
+    klist = {}
+    tlist = {}
+    for ii, t in enumerate(theta_list):
+        count += 1
+        print("Theta = {:.2f}, {} of {}".format(t*r2d, count, residual.size))
+        kappa_best, _ = fit_vonMises_dist(PREM, FeSi, t, kappa_list)
+        klist[str(t)] = kappa_best
+        R = rotation_matrix(0, t, 0)
+        temp = transform_tensor(SC.Cijkl, R)
+        VM = compositeElasticityTensor(temp, SC.rho, vonMisesRotate(0, kappa_best), \
+                                        wDir=wDir, ID=str(count), res=SC.res, verbose=False)
+        VM.add_samples(5.e3)
+        VM.ave_rot_axis(int_num=1000)
+        res = np.sum((model.vel[:,:,:] - VM.vel[:,:,:])**2)
+        residual[ii] = res
+        tlist[str(t)] = res
+    ind = residual==np.min(residual, axis=0)
+    theta_best = theta_list[ind][0]
+    kappa_best = klist[str(theta_best)]
+    return kappa_best, theta_best, [tlist, klist, residual]
 
-# Create Elasticity 4-Tensor
-C = create_cubic_elasticity_tensor(c11, c12, c44)
-
-
-
-# fig = plot_cubic_Pwavespeeds(c11, c12, c44, rho)
-# plt.savefig(figDir+'analaytic_cubic_wavespeeds.pdf')
-# plt.close()
-#
-# fig = plot_wavespeeds(*get_acoustic_Pwavespeeds(C, rho))
-# plt.savefig(figDir+'../../numerical_cubic_wavespeeds.pdf')
-# plt.close()
-
-# # Display the non-zero components
-# M = getHookeLawMatrix(C)
-# print("Original Tensor in 6-space Tensor Notations:")
-# print_cs(M)
-#
-# # Create rotation matrix
-# R = rotation_matrix(np.pi/4, -55.*np.pi/180)
-#
-# #TODO: Add test to suite!
-# # Rotate Elasticity Tensor
-# Cprime = transform_tensor(C, R)
-# fig = plot_wavespeeds(*get_acoustic_Pwavespeeds(Cprime, rho))
-# plt.savefig(figDir+'rotated_cubic_wavespeeds.pdf')
-# plt.close()
-
-
-phi, theta, v_analytic = get_cubic_Pwavespeeds(c11, c12, c44, rho, 100)
-phi, theta, v_numeric  = get_acoustic_Pwavespeeds(C, rho, 100)
-phi, theta, v_all = get_eig_wavespeeds(C, rho)
-v_eig = v_all[:, :, 2]
-print(np.max(np.abs(v_analytic - v_numeric)/v_analytic))
-print(np.max(np.abs(v_analytic - v_eig)/v_analytic))
-
-f = plot_wavespeeds(phi, theta, v_analytic*1.e-3)
-f.axes[0].set_title(r'$V_p$ Analytic')
-f.axes[1].set_ylabel('km/s')
-f.savefig(figDir+'0_analaytic_cubic_Pwavespeeds.pdf')
-plt.close(f)
-
-f = plot_wavespeeds(phi, theta, v_numeric*1.e-3)
-f.axes[0].set_title(r'$V_p$ from Christoffel Sum')
-f.axes[1].set_ylabel('km/s')
-f.savefig(figDir+'1_numeric_brute_Pwavespeeds.pdf')
-plt.close(f)
-
-f = plot_wavespeeds(phi, theta, v_eig*1.e-3)
-f.axes[0].set_title(r'$V_p$ from eigevalues of Christoffel Tensor')
-f.axes[1].set_ylabel('km/s')
-f.savefig(figDir+'2_numeric_eig_Pwavespeeds.pdf')
-plt.close(f)
-
-f = plot_wavespeeds(phi, theta, (v_numeric-v_analytic)*1.e-3)
-f.axes[0].set_title(r'Diff. $V_p$ Numeric Sum - Analytic')
-f.axes[1].set_ylabel('km/s')
-f.savefig(figDir+'3_error_numeric_Pwavespeeds.pdf')
-plt.close(f)
-
-f = plot_wavespeeds(phi, theta, 100*(v_eig-v_analytic)/v_analytic)
-f.axes[0].set_title(r'Diff. $V_p$ Eig. Christoffel - Analytic')
-f.axes[1].set_ylabel(r'% $V_p$ Analytic')
-f.savefig(figDir+'4_error_eigChristoffel_Pwavespeeds.pdf')
-plt.close(f)
-# plt.contourf(1.e-9*v_eig**2)
-
-v_Smin= v_all[:, :, 0]
-v_Smax= v_all[:, :, 1]
-f = plot_wavespeeds(phi, theta, v_Smin*1.e-3)
-f.axes[0].set_title(r'$V_{Smin}$ from Eigenvalues of Christoffel Tensor')
-f.axes[1].set_ylabel('km/s')
-f.savefig(figDir+'5_Smin_eig_wavespeeds.pdf')
-plt.close(f)
-
-f = plot_wavespeeds(phi, theta, v_Smax*1.e-3)
-f.axes[0].set_title(r'$V_{Smax}$ from Eigenvalues of Christoffel Tensor')
-f.axes[1].set_ylabel('km/s')
-f.savefig(figDir+'6_Smax_eig_wavespeeds.pdf')
-plt.close(f)
+def fit_vonMises_dist(model, SC, theta, kappa_list=np.linspace(0, 25, 20)):
+    count=0
+    residual = np.zeros([len(kappa_list),])
+    for jj, kappa in enumerate(kappa_list):
+        count += 1
+        # print("Kappa {} of {}".format(count, residual.size))
+        R = rotation_matrix(0, theta, 0)
+        temp = transform_tensor(SC.Cijkl, R)
+        VM = compositeElasticityTensor(temp, SC.rho, vonMisesRotate(0, kappa), \
+                                        wDir=wDir, ID=str(count), res=SC.res, verbose=False)
+        VM.add_samples(1.e3)
+        VM.ave_rot_axis(int_num=1000)
+        residual[jj] = np.sum((model.vel[:,:,:] - VM.vel[:,:,:])**2)
+    ind = residual==np.min(residual, axis=0)
+    kappa_best = kappa_list[ind][0]
+    print('Kappa Best is: {}'.format(kappa_best))
+    return kappa_best, residual
 
 
-curDir = figDir+'randomly_oriented/'
-num_chrystal = int(1.e5)
-R = randomEulerRotation()
-C_ave = np.zeros([3,3,3,3])
-for ii in np.arange(num_chrystal):
-    C_ave += transform_tensor(C, R())/num_chrystal
+def plot_cos2(VM, model):
+    fig = plt.figure()
+    plt.plot(np.cos(VM.theta[:,0]*d2r)**2, VM.vel[:,0,2]*1.e-3)
+    plt.plot(np.cos(VM.theta[:,0]*d2r)**2, model.vel[:,0,2]*1.e-3)
+    plt.xlabel(r'$\vartheta$')
+    plt.ylabel('km/s')
+    plt.title(VM.vel_names[2])
+    # plt.gca().set_ylim(bottom=0)
+    plt.gca().set_xlim([0,np.pi/2])
+    plt.savefig(VM.fDir+"PREM_vs_COMP_{}cos.pdf".format(VM.vel_names[ii]))
+    return fig
+    # plt.close('all')
 
-f = R.plot_az_distribution()
-f.savefig(curDir +'az_dist.pdf')
-plt.close(f)
+def plot_residuals(residuals):
+    fig, ax1 = plt.subplots()
+    plt.plot(np.fromiter(residual[0].keys(), dtype=float)*r2d , np.fromiter(residual[0].values(), dtype=float) )
+    plt.xlabel('Beta Rotation [degrees]')
+    plt.ylabel('Misfit')
+    ax2 = ax1.twinx()
+    plt.plot(np.fromiter(residual[1].keys(), dtype=float)*r2d , np.fromiter(residual[1].values(), dtype=float) , 'r')
+    plt.ylabel('Kappa Best')
 
-phi, theta, v  = get_eig_wavespeeds(C_ave, rho, 50)
-alpha = v[:, :, 2]
-f = plot_wavespeeds(phi, theta, alpha*1.e-3)
-f.axes[0].set_title(r'$V_p$ of {} randomly oriented cubic crystals.'.format(num_chrystal))
-f.axes[1].set_ylabel('km/s')
-f.savefig(curDir + 'Pwavespeeds_N{}.pdf'.format(num_chrystal))
-plt.close(f)
+res=20
+# Inversion of A, C, F, L, N from Ishii 2002 & PREM constrains
+PREM = tranverselyIsotropicCrystal(**prem_elastic_parms, rho=rho, wDir=wDir, ID='PREM', res=res)
+FeSi = cubicCrystal(**FeSi_elastic_params, rho=rho, res=res)
+
+# Fit Parameters
+kappa_best, theta_best, residual = fit_dist(PREM, FeSi, N=21)
+plot_residuals(residual)
+plt.plot(theta_best*r2d, kappa_best, '*k', ms=5)
+plt.savefig(wDir + "BestComp1/figures/residuals.pdf")
+plt.close()
+
+# Best Composition 1
+VM = compositeElasticityTensor(FeSi.Cijkl, FeSi.rho, vonMisesRotate(theta_best, kappa_best), \
+                                            wDir=wDir, ID='BestComp1', res=res)
+VM.add_samples(5.e3)
+VM.ave_rot_axis(int_num=1000)
+VM.plot_wavespeeds()
+VM.plot_az_dist()
+VM.plot_axes_dist()
 
 
-# v = np.array([1, 1, 1])
-# s =1./np.sqrt(2)
-# a_ij = np.array([[s, 0, -s],[0, 1, 0],[s, 0, s]])
-# R = rotation_matrix(0, np.pi/4)
-# print_cs(R.T)
-# Cprime = transform_tensor(v, R.T)
-# print_cs(Cprime)
-#
-# Cprime2 = transform_tensor(v, a_ij)
-# print_cs(Cprime2)
-# t_ij = np.array([[2,6,4], [0, 8, 0], [4, 2, 0]])
-# Cprime3 = transform_tensor(t_ij, a_ij)
-# print_cs(Cprime3)
-# Cprime2 = transform_tensor(t_ij, R.T)
-# print_cs(Cprime2)
+
+plot_cos2(VM, PREM)
+
+diff = PREM.vel - VM.vel
+for ii in np.arange(3):
+    plot_wavespeeds(VM.phi, VM.theta, diff[:,:,ii]*1.e-3)
+    plt.title('Diff. PREM & Best Compotision 1')
+    plt.savefig(VM.fDir+"PREM_Diff_Comp_{}.pdf".format(VM.vel_names[ii]))
+    plt.close()
+
+for ii in np.arange(3):
+    plot_wavespeeds(VM.phi, VM.theta, (diff[:,:,ii]/PREM.vel[:,:,ii])*100)
+    plt.title('Diff. Percent PREM & Best Compotision 1')
+    plt.savefig(VM.fDir+"PREM_Percent_Diff_Comp_{}.pdf".format(VM.vel_names[ii]))
+    plt.close()
+
+for ii in np.arange(3):
+    plt.plot(np.cos(VM.theta[:,0]*d2r)**2, VM.vel[:,0,ii]*1.e-3)
+    plt.plot(np.cos(VM.theta[:,0]*d2r)**2, PREM.vel[:,0,ii]*1.e-3)
+    plt.xlabel(r'$\vartheta$')
+    plt.ylabel('km/s')
+    plt.title(VM.vel_names[ii])
+    # plt.gca().set_ylim(bottom=0)
+    plt.gca().set_xlim([0,np.pi/2])
+    plt.savefig(VM.fDir+"PREM_vs_COMP_{}cos.pdf".format(VM.vel_names[ii]))
+    plt.close('all')
+
+N=20
+count=0
+residual = np.zeros([N,N])
+PHI, THETA = np.meshgrid(np.linspace(0, 360, N), np.linspace(0, 180, N))
+for ii in np.arange(N):
+    for jj in np.arange(N):
+        p, t = PHI[ii,jj], THETA[ii, jj]
+        R = rotation_matrix(p, t, 0)
+        temp = transform_tensor(FeSi.Cijkl, R)
+        # temp = compositeElasticityTensor(, FeSi.rho, zRotationDistribution(), res=N)
+        temp = ave_rotate_z(temp)
+        _, _, vel = get_eig_wavespeeds(temp, rho, res)
+        residual[ii,jj] = np.sum((diff - vel)**2)
+        count += 1
+        print("{} of {}".format(count, int(N**2)))
+plt.pcolor(PHI, THETA, residual)
+plt.colorbar()
+plt.savefig(VM.fDir+"Comp2_phi_theta_fit.pdf")
+plt.close()
+
+N=10
+count=0
+residual = np.zeros([N,N])
+kappa_list = np.linspace(1, 10, N)
+theta_list = np.linspace(0, 180, 3*N)
+residual = np.zeros([len(theta_list),len(kappa_list)])
+for ii, t in enumerate(theta_list):
+    for jj, kappa in enumerate(kappa_list):
+        R = rotation_matrix(0, t, 0)
+        temp = transform_tensor(FeSi.Cijkl, R)
+        VM = compositeElasticityTensor(temp, FeSi.rho, vonMisesRotate(0, kappa), \
+                                            wDir=wDir, ID='BestComp2', res=res)
+        VM.add_samples(5.e3)
+        VM.ave_rot_axis(int_num=1000)
+        residual[ii,jj] = np.sum((diff - VM.vel)**2)
+        count += 1
+        print("{} of {}".format(count, len(theta_list)*len(kappa_list)))
+plt.pcolor(residual)
+plt.colorbar()
+plt.savefig("../../IC_compositions/BestComp1/figures/Comp2_kappa_theta_fit.pdf")
+plt.close()
+
+col = np.argmin(np.min(residual, axis=1))
+row = np.argmin(np.min(residual, axis=0))
+kappa_best2 = kappa_list[row]
+theta_best2 = theta_list[col]
+
+
+# Best Composition 1
+VM = compositeElasticityTensor(temp, FeSi.rho, vonMisesRotate(theta_best2, kappa_best2), \
+                                            wDir=wDir, ID='BestComp2', res=res)
+VM.add_samples(5.e3)
+VM.ave_rot_axis(int_num=1000)
+VM.plot_wavespeeds()
+VM.plot_az_dist()
+VM.plot_axes_dist()
+
+diff2 = diff - VM.vel
+for ii in np.arange(3):
+    plot_wavespeeds(VM.phi, VM.theta, diff2[:,:,ii]*1.e-3)
+    plt.title('Diff. PREM & Best Compotision 1')
+    plt.savefig(VM.fDir+"PREM_Diff_Comp_{}.pdf".format(VM.vel_names[ii]))
+    plt.close()
+
+###############
+N=20
+count=0
+residual = np.zeros([N,N])
+PHI, THETA = np.meshgrid(np.linspace(0, 360, N), np.linspace(0, 180, N))
+for ii in np.arange(N):
+    for jj in np.arange(N):
+        p, t = PHI[ii,jj], THETA[ii, jj]
+        R = rotation_matrix(p, t, 0)
+        temp = transform_tensor(FeSi.Cijkl, R)
+        # temp = compositeElasticityTensor(, FeSi.rho, zRotationDistribution(), res=N)
+        temp = ave_rotate_z(temp)
+        _, _, vel = get_eig_wavespeeds(temp, rho, res)
+        residual[ii,jj] = np.sum((PREM.vel - vel)**2)
+        count += 1
+        print("{} of {}".format(count, int(N**2)))
+
+plt.pcolor(PHI, THETA, residual)
+plt.colorbar()
+plt.xlabel(r'$\varphi$')
+plt.ylabel(r'$\vartheta$')
+
+R = rotation_matrix(0, 85*d2r, 0)
+temp = transform_tensor(FeSi.Cijkl, R)
+temp = ave_rotate_z(temp)
+phi, theta, vel = get_eig_wavespeeds(temp, rho, res)
+diff = PREM.vel - vel
+plt.contourf(phi, theta, diff[:,:,2]*1.e-3)
+plt.colorbar()
+plt.xlabel(r'$\varphi$')
+plt.ylabel(r'$\vartheta$')

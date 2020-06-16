@@ -1,21 +1,31 @@
 import numpy as np
 from functools import reduce
+from scipy.special import i0
+from scipy.stats import vonmises
+
 from array_utils import print_cs, zero_threshold
-#import matplotlib as mpl
-# from plot_utils import pgf_with_latex
-# mpl.rcParams.update(pgf_with_latex)
-import matplotlib.pyplot as plt
+from io_utils import *
+from plot_utils import *
+
+def get_spherical_coordinates(x,y,z):
+    r = np.sqrt(x**2 + y**2 + z**2)
+    theta = np.arccos(z/r)
+    phi = np.arctan2(y,x)
+    return r, theta, phi
 
 class randomRotation:
     def __init__(self):
         self.rot_log = []
         self.type = 'zyx'
         self._az_labels = {0: 'Z', 1: 'Y', 2: 'X'}
+        self.prime_axes = [[],[],[]]
+
 
     def __call__(self):
         crot = self._gen_rand_rot_az()
         self.rot_log.append(crot)
         R = self._gen_rand_rot_matrix(crot)
+        self._log_axes_distribution(R)
         return R
 
     def _gen_rand_rot_matrix(self, crot):
@@ -24,8 +34,13 @@ class randomRotation:
     def _gen_rand_rot_az(self):
         return [gen_rand_az() for i in np.arange(3)]
 
-    def _get_az_distribution():
-        raise NotImplementedError
+    def _log_axes_distribution(self, R):
+        for ii in np.arange(3):
+            x_old = np.zeros([3,])
+            x_old[ii] = 1
+            x_new = transform_tensor(x_old, R)
+            r, theta, phi = get_spherical_coordinates(*x_new)
+            self.prime_axes[ii].append([theta, phi])
 
     def plot_az_distribution(self):
         dist = np.array(self.rot_log)
@@ -36,20 +51,244 @@ class randomRotation:
             axarr[ii].set_ylabel('{}-axis'.format(self._az_labels[ii]))
         return f
 
+    def plot_axes_dist(self):
+        f, axarr = plt.subplots(3, sharex=True, sharey=True)
+        for ii in np.arange(3):
+            dist = np.array(self.prime_axes[ii])
+            x,y = dist[:,0],dist[:,1]
+            axarr[ii].hist2d(x,y, 20)
+            axarr[ii].set_xlabel(r'$\theta$')
+            axarr[ii].set_ylabel(r'$\phi$')
+        return f
+
 class randomEulerRotation(randomRotation):
     def __init__(self):
-        self.rot_log = []
         self.type = 'euler'
         self._az_labels = {0: r'$\alpha$', 1: r'$\beta$', 2: r'$\gamma$'}
+        self.rot_log = []
+        self.prime_axes = [[],[],[]]
 
     def _gen_rand_rot_az(self):
-        alpha = gen_rand_az([0, 2*np.pi])
-        beta = gen_rand_az([0, np.pi])
-        gamma = gen_rand_az([0, 2*np.pi])
+        alpha = np.random.uniform(0, 2*np.pi)
+        # When sampling in the phi direction, we don't actually
+        # want it to be uniform
+        beta = np.arccos(1-2*np.random.uniform(0, 1))
+        gamma = np.random.uniform(0, 2*np.pi)
         return [alpha, beta, gamma]
 
     def _gen_rand_rot_matrix(self, crot):
         return euler_rotation_matrix(*crot)
+
+class zRotationDistribution(randomEulerRotation):
+    def __init__(self):
+        super().__init__()
+
+    def _gen_rand_rot_az(self):
+        alpha = np.random.uniform(0, 2*np.pi)
+        # When sampling in the phi direction, we don't actually
+        # want it to be uniform
+        beta = 0
+        gamma = 0
+        return [alpha, beta, gamma]
+
+    def _gen_rand_rot_matrix(self, crot):
+        return euler_rotation_matrix(*crot)
+
+class vonMisesRotate(randomEulerRotation):
+    def __init__(self, mu=0, kappa=1):
+        super().__init__()
+        self.mu = mu
+        self.kappa = kappa
+
+    def _gen_rand_rot_az(self):
+        alpha = 0
+        beta =  np.random.vonmises(self.mu, self.kappa)
+        gamma = 0
+        return [alpha, beta, gamma]
+
+    def _gen_rand_rot_matrix(self, crot):
+        return rotation_matrix(*crot)
+
+class singleCrystal:
+    def __init__(self, ID='single_crystal', wDir='', res=100, verbose=True):
+        self.Cijkl = None
+        self.Mij   = None
+        self.rho   = None
+        self.phi = self.theta = self.vel = None
+        self.wDir = wDir
+        self.cDir = self.wDir + f'{ID}/'
+        self.fDir = self.cDir + 'figures/'
+        self.verbose = verbose
+        self.rot_log = []
+        self.vel_names = ['Smin', 'Smax', 'P']
+        self.res = res
+
+    def _set_velocity(self):
+        self.phi, self.theta, self.vel = get_eig_wavespeeds(self.Cijkl, self.rho, self.res)
+
+    def _set_directories(self):
+        [safe_make(sd) for sd in [self.wDir, self.cDir, self.fDir]]
+
+    def _print(self, string):
+        if self.verbose:
+            print(string)
+
+    def rotate(self, alpha, beta, gamma):
+        self._print("Performing euler rotation of Cijkl...")
+        self.rot_log.append([alpha, beta, gamma])
+        R = euler_rotation_matrix(alpha, beta, gamma)
+        self.Cijkl = transform_tensor(self.Cijkl, R)
+        self._set_velocity()
+
+    def get_wavespeeds(self):
+        return self.phi, self.theta, self.vel
+
+    def plot_wavespeeds(self, comp=None, show=False, save=True, prefix='', suffix=''):
+        if comp is None:
+            for ii in np.arange(3):
+                fname = self.vel_names[ii]
+                v = self.vel[:, :, ii]
+                f = plot_wavespeeds(self.phi, self.theta, v*1.e-3)
+                f.axes[0].set_title(r'{}-wavespeeds'.format(fname))
+                f.axes[1].set_ylabel('km/s')
+                if save:
+                    self._set_directories()
+                    self._print("Plotting {}-wavespeeds to {}".format(fname, self.fDir))
+                    f.savefig(self.fDir + '{}_{}_wavespeed_{}.pdf'.format(prefix, fname, suffix))
+                if show:
+                    plt.show()
+                plt.close(f)
+
+    def get_iso_velocites(self):
+        return get_iso_velocites(self.Cijkl)
+
+    def ave_rot_axis(self, axis='z', int_num=360):
+        if axis == 'z':
+            self._print("Rotating and averaging about z axis...")
+            self.Cijkl = ave_rotate_z(self.Cijkl, int_num=int_num)
+            self._print("Setting velocity...")
+            self._set_velocity()
+
+    def get_Voigt(self):
+        raise NotImplementedError
+
+    def get_Reuss(self):
+        raise NotImplementedError
+
+    def get_VRH(self):
+        raise NotImplementedError
+
+
+class tranverselyIsotropicCrystal(singleCrystal):
+    def __init__(self, A, C, F, L, N, rho, ID='tranversely_isotropic_crystal', wDir='', res=100):
+        super().__init__(ID=ID, wDir=wDir, res=res)
+        self.elastic_params = {'A':A, 'C':C, 'F':F, 'L':L, 'N':N}
+        self.rho = rho
+        self._set_Cijkl()
+        self._set_velocity()
+
+    def _set_Cijkl(self):
+        self._print("Creating transversely isotropic elasticity tensor from A, C, F, L, N ...")
+        self.Cijkl = create_transversely_isotropic_tensor(**self.elastic_params)
+
+class cubicCrystal(singleCrystal):
+    def __init__(self, c11, c12, c44, rho, ID='cubic_crystal', wDir='', res=100):
+        super().__init__(ID=ID, wDir=wDir, res=res)
+        self.elastic_params = {'c11':c11, 'c12':c12, 'c44':c44}
+        self.rho = rho
+        self._set_Cijkl()
+        self._set_velocity()
+
+    def _set_Cijkl(self):
+        self._print("Creating cubic elasticity tensor from c11, c12, c44 ...")
+        self.Cijkl = create_cubic_elasticity_tensor(**self.elastic_params)
+
+
+class compositeElasticityTensor(singleCrystal):
+    def __init__(self, C_ijkl, rho, R_dist=randomEulerRotation(), ID='randomly_oriented',
+                        wDir='', res=100, auto_set_vel=True, **kwargs):
+        super().__init__(ID=ID, wDir=wDir, res=res, **kwargs)
+        self.rho = rho
+        # single_crystal_C_ijkl
+        self.sc_Cijkl = C_ijkl
+        # Rotation Distribution
+        self.R = R_dist
+        self.num_crystal = 0
+        self._sum_Cijkl = np.zeros_like(C_ijkl)
+        # composite C_ijkl
+        self.Cijkl = C_ijkl
+        self.phi = self.theta = self.vel = None
+        self.converged  = False
+        self.ID = ID
+        self.auto_set_vel = auto_set_vel
+
+    def add_samples(self, N=1):
+        num = int(N)
+        self._print("Adding {} crystals...".format(num))
+        for ii in np.arange(num):
+            self._sum_Cijkl  += transform_tensor(self.sc_Cijkl, self.R())
+            self.num_crystal += 1
+        self._print("Calculating new average Cijkl...")
+        self.Cijkl = self._sum_Cijkl/self.num_crystal
+        self._print("Calculating wavespeeds..")
+        if self.auto_set_vel:
+            self._set_velocity()
+
+    def reset_composition(self):
+        self.num_crystal = 0
+        self._sum_Cijkl = np.zeros_like(self.Cijkl)
+        self.phi = self.theta = self.vel = None
+        self.Cijkl = self.sc_Cijkl
+        self.converged  = False
+        self._print("Reseting Crystal Composition...")
+
+    def test_convergence(self):
+        raise NotImplementedError
+
+    def build_composite(self):
+        raise NotImplementedError
+
+    def plot_az_dist(self, show=False, save=True):
+        f = self.R.plot_az_distribution()
+        if save:
+            self._set_directories()
+            self._print("Plotting azimuth distributions to {}".format(self.fDir))
+            f.savefig(self.fDir +'az_dist.pdf')
+        if show:
+            plt.show()
+        plt.close(f)
+
+    def plot_axes_dist(self, show=False, save=True):
+        f = self.R.plot_axes_dist()
+        if save:
+            self._set_directories()
+            self._print("Plotting axes distributions to {}".format(self.fDir))
+            f.savefig(self.fDir +'axes_dist.pdf')
+        if show:
+            plt.show()
+        plt.close(f)
+
+    def plot_wavespeeds(self, comp=None, show=False, save=True, prefix='', suffix=''):
+        Nsuffix = 'N{}_{}'.format(self.num_crystal, suffix)
+        super().plot_wavespeeds(comp=None, show=False, save=True, prefix=prefix, suffix=Nsuffix)
+
+def ave_rotate_z(Cijkl, int_num=360):
+    temp = np.zeros_like(Cijkl)
+    for tt in np.linspace(0, 2*np.pi, int_num):
+        temp += transform_tensor(Cijkl, rotation_matrix(tt))/int_num
+    return temp
+
+def ave_vonMises_rotate(Cijkl, mu, kappa, int_num=360):
+    temp = np.zeros_like(Cijkl)
+    pdf = get_vonMises_pdf(mu, kappa)
+    t_list = np.linspace(0, 2*np.pi, int_num)
+    INT = np.trapz(pdf(t_list))
+    for tt in t_list:
+        temp += pdf(tt)*transform_tensor(Cijkl, rotation_matrix(0, tt))/INT
+    return temp
+
+def get_vonMises_pdf(mu, kappa):
+    return lambda x: np.exp(kappa*np.cos(x-mu))/(2*np.pi*i0(kappa))
 
 def gen_rand_az(az_range=[0, 2*np.pi]):
     return np.random.uniform(az_range[0], az_range[1])
@@ -248,12 +487,12 @@ def rotation_matrix(z=0, y=0, x=0):
     if Ms:
         return reduce(np.dot, Ms[::-1])
     return np.eye(3)
-    
+
 @zero_threshold
 def euler_rotation_matrix(alpha, beta, gamma):
     assert 0 <= alpha <= 2*np.pi, "Alpha must be between 0 and 2pi"
-    assert 0 <= beta <= np.pi, "Alpha must be between 0 and 2pi"
-    assert 0 <= gamma <= 2*np.pi, "Alpha must be between 0 and 2pi"
+    assert 0 <= beta <= np.pi, "Beta must be between 0 and pi"
+    assert 0 <= gamma <= 2*np.pi, "Gamma must be between 0 and 2pi"
     A = rotation_matrix(z=alpha)
     B = rotation_matrix(y=beta)
     C = rotation_matrix(z=gamma)
@@ -370,23 +609,6 @@ def get_acoustic_Pwavespeeds(C_ijkl, rho, N=100):
             V[ii, jj] = get_wavespeed(C_ijkl, rho, q, q)
     return PHI, THETA, V
 
-def plot_wavespeeds(phi, theta, v):
-    fig = plt.figure()
-    plt.contourf(phi, theta, v, 20)
-    plt.colorbar()
-    plt.xlabel(r'$\phi$')
-    plt.ylabel(r'$\vartheta$')
-    return fig
-
-def plot_max(phi, theta, v):
-    maxV = np.max(v)
-    maxInd = np.unravel_index(np.argmax(v, axis=None), v.shape)
-    phiMax = phi[maxInd]
-    thetaMax = theta[maxInd]
-    plt.plot(phiMax, thetaMax, 'xk', ms=5)
-    plt.text(phiMax-12, thetaMax-10, "({:2.2f}, {:2.2f})".format(phiMax, thetaMax) )
-    plt.text(phiMax-12, thetaMax+10, "{:2.2f} km/s".format(maxV) )
-
 def get_cubic_Pwavespeeds(c11, c12, c44, rho, N=100):
     """ Returns Longitudinal Cubic Wavespeeds as a function of two angles
     phi is the angle the vector makes with the x1 direction in the x1-x2
@@ -412,13 +634,25 @@ def get_cubic_Pwavespeeds(c11, c12, c44, rho, N=100):
     v = np.sqrt(rhov2/rho)
     return phi, theta, v
 
-def plot_cubic_Pwavespeeds(c11, c12, c44, rho):
-    """ C_{ijkl} = \lambda \delta_{ij}\delta_{kl} +
-                    2\mu*(\delta_{il}\delta_{jk} + \delta_{ik}\delta_{jl})
-        c_{11} = \lambda + 2\mu + \eta
-        c_{12} = \lambda
-        c_{44} = \mu
-    """
-    phi, theta, v = get_cubic_Pwavespeeds(c11, c12, c44, rho)
-    fig = plot_wavespeeds(phi, theta, v*1.e-3)
-    return
+def get_bulk(C):
+    M = get_hooke_law_matrix(C)
+    return (M[0][0]+M[1][1]+M[2][2]+2*(M[0][1]+M[0][2]+M[1][2]))/9
+
+def get_shear(C):
+    M = get_hooke_law_matrix(C)
+    return ((M[0][0]+M[1][1]+M[2][2]) - (M[0][1]+M[0][2]+M[1][2]) \
+            + 3*(M[3][3]+M[4][4]+M[5][5]))/15
+
+# Create test for this by checking on ISOtropic matrices, Cubic which we
+# hvae expressions for the isotropic part and rotating and averaging a generic matrix
+def get_iso_velocites(C, rho):
+    bulk = get_bulk(C)
+    shear = get_shear(C)
+    P  = np.sqrt((bulk + 4.0*shear/3)/rho)
+    S  = np.sqrt(shear/rho)
+    return P, S
+
+def prem_speeds(A, C, F, L, N, rho):
+    vp = np.sqrt((8*A + 3*C + 4*F + 8*L)/(15.*rho))
+    vs = np.sqrt((A + C -2*F + 6*L + 5*N)/(15.*rho))
+    return vp, vs
