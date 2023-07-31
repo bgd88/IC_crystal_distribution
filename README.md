@@ -4,6 +4,7 @@ Analysis of the material properties of anisotropic materials (e.g. quantities re
 Rotation of higher-order elastic tensors, and the generation of randomly oriened polychristaline samples. 
 
 Some scripts associated with analysis in:
+
 Delbridge, B. and Ishii, M., 2020. Seismic Wave Speeds Derived from Nuclear Resonant Inelastic X-ray Scattering for 
 Comparison with Seismological Observations. Minerals, 10(4), p.331.
 
